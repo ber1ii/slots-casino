@@ -48,4 +48,11 @@ userSchema.methods.comparePassword = async function (candidatePassword) {
     return bcrypt.compare(candidatePassword, this.password);
 };
 
+// Stop accidental password leaking in logs/responses
+userSchema.methods.toJSON = function() {
+    const obj = this.toObject();
+    delete obj.password;
+    return obj;
+}
+
 module.exports = mongoose.model('User', userSchema);
