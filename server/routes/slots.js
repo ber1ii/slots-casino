@@ -10,21 +10,21 @@ const SYMBOLS = {
     BLUE_GEM: {
         id: 'BLUE_GEM',
         symbol: '🔵',
-        weight: 24,
+        weight: 30,
         tier: 1,
         name: 'Blue Gem',
     },
     GREEN_GEM: {
         id: 'GREEN_GEM',
         symbol: '🟢',
-        weight: 24,
+        weight: 28,
         tier: 1,
         name: 'Green Gem'
     },
     PURPLE_GEM: {
         id: 'PURPLE_GEM',
         symbol: '🟣',
-        weight: 24,
+        weight: 26,
         tier: 1,
         name: 'Purple Gem'
     },
@@ -40,21 +40,21 @@ const SYMBOLS = {
     RING: {
         id: 'RING',
         symbol: '💍',
-        weight: 14,
+        weight: 12,
         tier: 2, 
         name: 'Ring',
     },
     HOURGLASS: {
         id: 'HOURGLASS',
         symbol: '⏳',
-        weight: 12,
+        weight: 10,
         tier: 2,
         name: 'Hourglass',
     },
     CROWN: {
         id: 'CROWN',
         symbol: '👑',
-        weight: 10,
+        weight: 9,
         tier: 2,
         name: 'Crown',
     },
@@ -63,21 +63,21 @@ const SYMBOLS = {
     MULTIPLIER_2X: {
         id: 'MULTIPLIER_2X',
         symbol: '⚡',
-        weight: 3,
+        weight: 1,
         multiplier: 2,
         name: '2x Multiplier',
     },
     MULTIPLIER_5X: {
         id: 'MULTIPLIER_5X',
         symbol: '🔥',
-        weight: 2,
+        weight: 0.5,
         multiplier: 5,
         name: '5x Multiplier'
     },
     MULTIPLIER_10X: {
         id: 'MULTIPLIER_10X',
         symbol: '💎',
-        weight: 1,
+        weight: 0.3,
         multiplier: 10,
         name: '10x Multiplier',
     },
@@ -86,44 +86,47 @@ const SYMBOLS = {
     SCATTER: {
         id: 'SCATTER',
         symbol: '⭐',
-        weight: 1,
+        weight: 0.6,
         name: 'Scatter',
     },
 };
 
 // Payout table
 const PAYOUTS = {
-    8: { tier1: 0.5, tier2: 1 },
-    9: { tier1: 0.8, tier2: 1.5 },
+    6: { tier1: 0.5, tier2: 1 },
+    7: { tier1: 0.6, tier2: 1.2 },
+    8: { tier1: 1, tier2: 1.5 },
+    9: { tier1: 1, tier2: 1.5 },
     10: { tier1: 1, tier2: 2 },
-    11: { tier1: 1.5, tier2: 3 },
-    12: { tier1: 2, tier2: 4 },
-    13: { tier1: 3, tier2: 6 },
-    14: { tier1: 3, tier2: 6 },
-    15: { tier1: 3, tier2: 6 },
-    16: { tier1: 5, tier2: 10 },
-    17: { tier1: 5, tier2: 10 },
-    18: { tier1: 5, tier2: 10 },
-    19: { tier1: 5, tier2: 10 },
-    20: { tier1: 5, tier2: 10 },
-    21: { tier1: 10, tier2: 20 },
-    22: { tier1: 10, tier2: 20 },
-    23: { tier1: 10, tier2: 20 },
-    24: { tier1: 10, tier2: 20 },
-    25: { tier1: 10, tier2: 20 },
-    26: { tier1: 20, tier2: 50 },
-    27: { tier1: 20, tier2: 50 },
-    28: { tier1: 20, tier2: 50 },
-    29: { tier1: 20, tier2: 50 },
-    30: { tier1: 20, tier2: 50 },
+    11: { tier1: 2, tier2: 4 },
+    12: { tier1: 2.5, tier2: 5 },
+    13: { tier1: 4, tier2: 8 },
+    14: { tier1: 4, tier2: 8 },
+    15: { tier1: 4, tier2: 8 },
+    16: { tier1: 6, tier2: 12 },
+    17: { tier1: 6, tier2: 12 },
+    18: { tier1: 6, tier2: 12 },
+    19: { tier1: 6, tier2: 12 },
+    20: { tier1: 6, tier2: 12 },
+    21: { tier1: 12, tier2: 24 },
+    22: { tier1: 12, tier2: 24 },
+    23: { tier1: 12, tier2: 24 },
+    24: { tier1: 12, tier2: 24 },
+    25: { tier1: 12, tier2: 24 },
+    26: { tier1: 25, tier2: 50 },
+    27: { tier1: 25, tier2: 50 },
+    28: { tier1: 25, tier2: 50 },
+    29: { tier1: 25, tier2: 50 },
+    30: { tier1: 25, tier2: 50 },
 };
 
 const GRID_ROWS = 5;
 const GRID_COLS = 6;
-const MIN_CLUSTER_SIZE = 8;
+const MIN_CLUSTER_SIZE = 6;
 const FREE_SPINS_TRIGGER = 3;
 const FREE_SPINS_AMOUNT = 10;
 const BUY_BONUS_COST = 100;
+let symbolIdCounter = 0;
 
 // Generate weighted symbol randomly
 function getRandomSymbol() {
@@ -133,10 +136,18 @@ function getRandomSymbol() {
 
     for(const symbol of symbolArray) {
         random -= symbol.weight;
-        if(random <= 0) return symbol;
+        if(random <= 0){
+            return {
+                ...symbol,
+                uniqueId: `${symbol.id}_${symbolIdCounter++}`,
+            };
+        }
     }
 
-    return symbolArray[0];
+    return {
+        ...symbolArray[0],
+        uniqueId: `${symbolArray[0].id}_${symbolIdCounter++}`,
+    };
 }
 
 // Generate 6x5 grid
@@ -156,78 +167,88 @@ function generateGrid() {
 
 // Find clusters using BFS
 function findClusters(grid) {
-    const visited = Array(GRID_ROWS)
-        .fill()
-        .map(() => Array(GRID_COLS).fill(false));
-    const clusters = [];
-    
-    for(let row = 0; row < GRID_ROWS; row++) {
-        for(let col = 0; col < GRID_COLS; col++) {
-            if(!visited[row][col]) {
-                const symbol = grid[row][col];
+  const visited = Array(GRID_ROWS)
+    .fill()
+    .map(() => Array(GRID_COLS).fill(false));
+  const clusters = [];
 
-                // Skip multipliers and scatters for cluster detection
-                if (
-                    symbol.multiplier !== undefined ||
-                    symbol.id === 'SCATTER'
-                ) {
-                    visited[row][col] = true;
-                    continue;
-                }
+  for (let row = 0; row < GRID_ROWS; row++) {
+    for (let col = 0; col < GRID_COLS; col++) {
+      if (!visited[row][col]) {
+        const symbol = grid[row][col];
 
-                const cluster = bfs(grid, row, col, symbol.id, visited);
-
-                if(cluster.length >= MIN_CLUSTER_SIZE) {
-                    clusters.push({
-                        symbol: symbol,
-                        positions: cluster,
-                        size: cluster.length,
-                    });
-                }
-            }
+        if (!symbol || !symbol.id) {
+          visited[row][col] = true;
+          continue;
         }
-    }
 
-    return clusters;
+        // Skip multipliers and scatters for cluster detection
+        if (symbol.multiplier !== undefined || symbol.id === 'SCATTER') {
+          visited[row][col] = true;
+          continue;
+        }
+
+        const cluster = bfs(grid, row, col, symbol.id, visited);
+
+        if (cluster.length >= MIN_CLUSTER_SIZE) {
+          clusters.push({
+            symbol: symbol,
+            positions: cluster,
+            size: cluster.length,
+          });
+        }
+      }
+    }
+  }
+
+  return clusters;
 }
 
 // BFS Algorithm to find connected symbols
 function bfs(grid, startRow, startCol, symbolId, visited) {
-    const queue = [[startRow, startCol]];
-    const cluster = [];
-    visited[startRow][startCol] = true;
+  const queue = [[startRow, startCol]];
+  const cluster = [];
+  visited[startRow][startCol] = true;
 
-    // Directions (up, down, left, right)
-    const directions = [
-        [-1, 0],
-        [1, 0],
-        [0, -1],
-        [0, 1],
-    ];
+  // Keep your 8 directions for diagonal matching
+  const directions = [
+    [-1, 0],
+    [1, 0],
+    [0, -1],
+    [0, 1],
+    [-1, -1],
+    [-1, 1],
+    [1, -1],
+    [1, 1],
+  ];
 
-    while(queue.length > 0) {
-        const [row, col] = queue.shift();
-        cluster.push([row, col]);
+  while (queue.length > 0) {
+    const [row, col] = queue.shift();
+    cluster.push([row, col]);
 
-        for(const [dRow, dCol] of directions) {
-            const newRow = row + dRow;
-            const newCol = col + dCol;
+    for (const [dRow, dCol] of directions) {
+      const newRow = row + dRow;
+      const newCol = col + dCol;
 
-            if(
-                newRow >= 0 &&
-                newRow < GRID_ROWS &&
-                newCol >= 0 &&
-                newCol < GRID_COLS &&
-                !visited[newRow][newCol] &&
-                grid[newRow][newCol].id === symbolId
-            ) {
-                visited[newRow][newCol] = true;
-                queue.push([newRow, newCol]);
-            }
+      if (
+        newRow >= 0 &&
+        newRow < GRID_ROWS &&
+        newCol >= 0 &&
+        newCol < GRID_COLS &&
+        !visited[newRow][newCol]
+      ) {
+        const neighborSymbol = grid[newRow][newCol];
+
+        // NULL CHECK HERE
+        if (neighborSymbol && neighborSymbol.id === symbolId) {
+          visited[newRow][newCol] = true;
+          queue.push([newRow, newCol]);
         }
+      }
     }
+  }
 
-    return cluster;
+  return cluster;
 }
 
 // Calculate payout for clusters
@@ -274,121 +295,118 @@ function getMultipliers(grid) {
     return multipliers;
 }
 
-// Remove winning symbols and drop new ones
+// Remove winning symbols and drop new ones - FIXED VERSION
 function cascadeGrid(grid, clusters) {
-    // Mark positions to remove
-    const toRemove = new Set();
+  const toRemove = new Set();
 
-    clusters.forEach((cluster) => {
-        cluster.positions.forEach(([row, col]) => {
-            toRemove.add(`${row},${col}`);
-        });
+  clusters.forEach((cluster) => {
+    cluster.positions.forEach(([row, col]) => {
+      toRemove.add(`${row},${col}`);
     });
+  });
 
-    // Create new grid
-    const newGrid = JSON.parse(JSON.stringify(grid));
+  const newGrid = [];
+  for (let row = 0; row < GRID_ROWS; row++) {
+    newGrid.push(new Array(GRID_COLS).fill(null));
+  }
 
-    // Remove symbols column by column
-    for(let col = 0; col < GRID_COLS; col++) {
-        const column = [];
+  for (let col = 0; col < GRID_COLS; col++) {
+    const survivingSymbols = [];
 
-        // Collect non removed symbols bottom -> top
-        for(let row = GRID_ROWS - 1; row >= 0; row--) {
-            if(!toRemove.has(`${row},${col}`)) {
-                column.push(newGrid[row][col]);
-            }
-        }
-
-        // Fill column from bottom with existing symbols
-        let columnIndex = 0;
-        for(let row = GRID_ROWS - 1; row >= 0; row--) {
-            if(columnIndex < column.length) {
-                newGrid[row][col] = column[columnIndex];
-                columnIndex++;
-            } else {
-                // Add random symbols at top
-                newGrid[row][col] = getRandomSymbol();
-            }
-        }
+    for (let row = 0; row < GRID_ROWS; row++) {
+      if (!toRemove.has(`${row},${col}`)) {
+        survivingSymbols.push(grid[row][col]);
+      }
     }
 
-    return newGrid;
-}
+    const newSymbolsNeeded = GRID_ROWS - survivingSymbols.length;
 
+    for (let i = 0; i < newSymbolsNeeded; i++) {
+      survivingSymbols.unshift(getRandomSymbol());
+    }
+
+    for (let row = 0; row < GRID_ROWS; row++) {
+      newGrid[row][col] = survivingSymbols[row];
+    }
+  }
+
+  // SAFETY CHECK: Verify no nulls exist
+  for (let row = 0; row < GRID_ROWS; row++) {
+    for (let col = 0; col < GRID_COLS; col++) {
+      if (!newGrid[row][col]) {
+        console.error(`NULL at [${row}][${col}] after cascade!`);
+        newGrid[row][col] = getRandomSymbol(); // Emergency fill
+      }
+    }
+  }
+
+  return newGrid;
+}
 // Process complete spin with cascading
 function processSpin(betAmount) {
-    let grid = generateGrid();
-    let totalWin = 0;
-    const cascades = [];
-    let globalMultipliers = [];
+  let grid = generateGrid();
+  let totalWin = 0;
+  const cascades = [];
+  let globalMultipliers = [];
 
-    // Check for scatters
-    const scatterCount = countScatters(grid);
-    const triggeredFreeSpins = 
-        scatterCount >= FREE_SPINS_TRIGGER ? FREE_SPINS_AMOUNT : 0;
+  const scatterCount = countScatters(grid);
+  const triggeredFreeSpins =
+    scatterCount >= FREE_SPINS_TRIGGER ? FREE_SPINS_AMOUNT : 0;
 
-    let cascadeCount = 0;
-    let hasWins = true;
+  let cascadeCount = 0;
+  let hasWins = true;
 
-    while(hasWins) {
-        // Find clusters
-        const clusters = findClusters(grid);
+  while (hasWins) {
+    const clusters = findClusters(grid);
 
-        if(clusters.length === 0) {
-            hasWins = false;
-            break;
-        }
-
-        // Calculate win for current cascade
-        let cascadeWin = 0;
-        clusters.forEach((cluster) => {
-            cascadeWin += calculateClusterPayout(cluster, betAmount);
-        });
-        
-        // Collect multipliers
-        const multipliers = getMultipliers(grid);
-        globalMultipliers.push(...multipliers);
-
-        // Store cascade data
-        cascades.push({
-            cascadeNumber: cascadeCount + 1,
-            grid: JSON.parse(JSON.stringify(grid)),
-            clusters: clusters.map((c) => ({
-                symbol: c.symbol.symbol,
-                size: c.size,
-                positions: c.positions,
-            })),
-            cascadeWin,
-            multipliers,
-        });
-
-        totalWin += cascadeWin;
-
-        // Cascade
-        grid = cascadeGrid(grid, clusters);
-        cascadeCount++;
-
-        // Safety limit (prevent infinite loops)
-        if(cascadeCount > 50) break;
+    if (clusters.length === 0) {
+      hasWins = false;
+      break;
     }
 
-    // Apply global multipliers to total win
-    if(globalMultipliers.length > 0) {
-        const totalMultiplier = globalMultipliers.reduce(
-            (acc, m) => acc * m,
-            1
-        );
-        totalWin *= totalMultiplier;
-    }
+    let cascadeWin = 0;
+    clusters.forEach((cluster) => {
+      cascadeWin += calculateClusterPayout(cluster, betAmount);
+    });
 
-    return {
-        finalGrid: grid,
-        totalWin,
-        cascades,
-        scatterCount,
-        triggeredFreeSpins,
-        multipliers: globalMultipliers,
-    };
+    const multipliers = getMultipliers(grid);
+    globalMultipliers.push(...multipliers);
+
+    // Store grid BEFORE cascade (where clusters were found)
+    cascades.push({
+      cascadeNumber: cascadeCount + 1,
+      grid: grid.map(row => [...row]),
+      clusters: clusters.map((c) => ({
+        symbol: c.symbol.symbol,
+        size: c.size,
+        positions: c.positions,
+      })),
+      cascadeWin,
+      multipliers,
+    });
+
+    totalWin += cascadeWin;
+
+    // NOW cascade for next iteration
+    grid = cascadeGrid(grid, clusters);
+    cascadeCount++;
+
+    if (cascadeCount > 50) break;
+  }
+
+  if (globalMultipliers.length > 0) {
+    const totalMultiplier = globalMultipliers.reduce((acc, m) => acc * m, 1);
+    totalWin *= totalMultiplier;
+  }
+
+  return {
+    finalGrid: grid,
+    totalWin,
+    cascades,
+    scatterCount,
+    triggeredFreeSpins,
+    multipliers: globalMultipliers,
+  };
 }
 
 // Spin endpoint
