@@ -1,7 +1,17 @@
+import { useEffect } from 'react';
 import Header from '../components/Header';
 import SlotGame from '../components/game/SlotGame';
+import audioManager from '../utils/audioManager';
 
 const Game = () => {
+  useEffect(() => {
+    audioManager.playAmbient();
+
+    return () => {
+      audioManager.stopAmbient();
+    };
+  }, []);
+
   return (
     <div className="cyberpunk-bg min-h-screen relative">
       {/* Starry background */}

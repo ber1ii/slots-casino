@@ -31,7 +31,8 @@ export const userAPI = {
 
 // Slots endpoints
 export const slotsAPI = {
-    spin: (betAmount) => api.post('/slots/spin', { betAmount }),
+    spin: (betAmount, isBoughtBonusSpin = false, isFirstBoughtSpin = false, bonusMultiplier = 1) =>
+        api.post('/slots/spin', { betAmount, isBoughtBonusSpin, isFirstBoughtSpin, bonusMultiplier }),
     buyBonus: (betAmount) => api.post('/slots/buy-bonus', { betAmount }),
 };
 

@@ -10,6 +10,9 @@ export const SYMBOL_SPRITES = {
     MULTIPLIER_2X: '/sprites/multiplier-2x.png',
     MULTIPLIER_5X: '/sprites/multiplier-5x.png',
     MULTIPLIER_10X: '/sprites/multiplier-10x.png',
+    MULTIPLIER_1000X: '/sprites/multiplier-1000x.png',
+    WILD: '/sprites/wild.png',
+    CHEST: '/sprites/chest.png',
     SCATTER: '/sprites/scatter.png',
 };
 
@@ -31,3 +34,31 @@ export const ANIMATION_SPEEDS = {
 // Win thresholds -> If Bet * Mult < Win
 export const BIG_WIN_MULTIPLIER = 10; 
 export const MEGA_WIN_MULTIPLIER = 25;
+
+export const PAYOUT_TABLE = {
+  6: { tier1: 0.5, tier2: 1 },
+  7: { tier1: 0.6, tier2: 1.2 },
+  8: { tier1: 1, tier2: 2 },
+  9: { tier1: 1.2, tier2: 2.5 },
+  10: { tier1: 2, tier2: 4 },
+  11: { tier1: 2.2, tier2: 4.4 },
+  12: { tier1: 2.5, tier2: 5 },
+  13: { tier1: 3, tier2: 6 },
+  14: { tier1: 3.5, tier2: 7 },
+  15: { tier1: 4, tier2: 8 },
+  16: { tier1: 5, tier2: 10 },
+  17: { tier1: 6, tier2: 12 },
+  18: { tier1: 7, tier2: 14 },
+  19: { tier1: 8, tier2: 16 },
+  20: { tier1: 9, tier2: 18 },
+  21: { tier1: 10, tier2: 20 },
+  22: { tier1: 12, tier2: 24 },
+  23: { tier1: 14, tier2: 28 },
+  24: { tier1: 16, tier2: 32 },
+  25: { tier1: 18, tier2: 36 },
+  26: { tier1: 20, tier2: 40 },
+  27: { tier1: 25, tier2: 50 },
+  28: { tier1: 30, tier2: 60 },
+  29: { tier1: 40, tier2: 80 },
+  30: { tier1: 50, tier2: 100 },
+};

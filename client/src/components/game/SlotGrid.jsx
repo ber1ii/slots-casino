@@ -49,14 +49,23 @@ const SlotGrid = ({
                 return (
                   <motion.div
                     key={symbol.uniqueId}
-                    layout
+                    layout={~isRolling}
                     layoutId={symbol.uniqueId}
-                    initial={{ y: -80, opacity: 0 }}
+                    initial={{ y: isRolling ? -150 : -80, opacity: isRolling ? 0.8 : 0 }}
                     animate={{ y: 0, opacity: 1 }}
-                    exit={{ opacity: 0, scale: 0.7 }}
+                    exit={{ y: isRolling ? 150 : 0, opacity: isRolling ? 0.8 : 0, scale: isRolling ? 1 : 0.7 }}
                     transition={{
-                      layout: { duration: 0.6, ease: [0.25, 0.1, 0.25, 1] },
-                      opacity: { duration: 0.2 },
+                      y: {
+                        type: 'tween',
+                        duration: isRolling ? 0.12 : 0.6,
+                        ease: 'linear',
+                      },
+                      opacity: { duration: 0.08 },
+                      scale: { duration: 0.2 },
+                      layout: {
+                        duration: 0.6,
+                        ease: [0.25, 0.1, 0.25, 1],
+                      },
                     }}
                     className="w-full h-full"
                   >

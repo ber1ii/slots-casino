@@ -20,6 +20,7 @@ class AudioManager {
 
     this.enabled = true;
     this.ambientPlaying = false;
+    this.ambientUnlocked - false;
   }
 
   toggle() {
@@ -36,8 +37,14 @@ class AudioManager {
 
   playAmbient() {
     if (this.enabled && !this.ambientPlaying) {
-      this.sounds.ambient.play().catch(() => {});
-      this.ambientPlaying = true;
+      this.sounds.ambient.play()
+        .then(() => {
+          this.ambientPlaying = true;
+          this.ambientUnlocked = true;
+        })
+      .catch(() => {
+
+      });
     }
   }
 
@@ -48,6 +55,14 @@ class AudioManager {
 
   play(soundName) {
     if (!this.enabled) return;
+
+    // Unlock ambient on first user interaction
+    if(!this.ambientUnlocked) {
+      this.ambientUnlocked = true;
+      if(!this.ambientPlaying) {
+        this.playAmbient();
+      }
+    }
 
     const sound = this.sounds[soundName];
     if (!sound) return;
