@@ -5,7 +5,13 @@ import toast from 'react-hot-toast';
 import SlotGrid from './SlotGrid';
 import audioManager from '../../utils/audioManager';
 import confetti from 'canvas-confetti';
-import { BET_PRESETS, GRID_COLS, GRID_ROWS, SYMBOL_SPRITES, PAYOUT_TABLE } from '../../config/gameConfig';
+import {
+  BET_PRESETS,
+  GRID_COLS,
+  GRID_ROWS,
+  SYMBOL_SPRITES,
+  PAYOUT_TABLE,
+} from '../../config/gameConfig';
 
 const SlotGame = () => {
   const { user, updateUser } = useAuth();
@@ -23,8 +29,12 @@ const SlotGame = () => {
   const [transactionHistory, setTransactionHistory] = useState([]);
   const [showPayoutTable, setShowPayoutTable] = useState(false);
   const [isBoughtBonusActive, setIsBoughtBonusActive] = useState(false);
-  const [accumulatedBonusMultiplier, setAccumulatedBonusMultiplier] = useState(1);
+  const [accumulatedBonusMultiplier, setAccumulatedBonusMultiplier] =
+    useState(1);
   const [isFirstBoughtSpin, setIsFirstBoughtSpin] = useState(false);
+  const [currentCascadeMultiplier, setCurrentCascadeMultiplier] = useState(1);
+  const [chestTransformPositions, setChestTransformPositions] = useState([]);
+  const [chestPositions, setChestPositions] = useState([]);
 
   const cascadeTimeoutRef = useRef(null);
   const totalWinTimeoutRef = useRef(null);
@@ -38,19 +48,17 @@ const SlotGame = () => {
       if (totalWinTimeoutRef.current)
         clearTimeout(totalWinTimeoutRef.current);
       if (spinIntervalRef.current) {
-        // Can be either interval or RAF ID
         clearInterval(spinIntervalRef.current);
         cancelAnimationFrame(spinIntervalRef.current);
       }
     };
   }, []);
 
-  // Keyboard shortcuts
   useEffect(() => {
     const handleKeyPress = (e) => {
-      if(isSpinning) return;
+      if (isSpinning) return;
 
-      switch(e.key.toLowerCase()) {
+      switch (e.key.toLowerCase()) {
         case ' ':
         case 'enter':
           e.preventDefault();
@@ -58,6 +66,9 @@ const SlotGame = () => {
           break;
         case 'a':
           toggleAutoplay();
+          break;
+        case 'm':
+          handleMaxBet();
           break;
         case 'b':
           setShowBuyBonusModal(true);
@@ -77,21 +88,20 @@ const SlotGame = () => {
     return () => window.removeEventListener('keydown', handleKeyPress);
   }, [isSpinning, betAmount, isAutoPlaying]);
 
-  // Autplay logic
   useEffect(() => {
-    if(isAutoPlaying && autoSpinsRemaining > 0 && !isSpinning) {
+    if (isAutoPlaying && autoSpinsRemaining > 0 && !isSpinning) {
       const timer = setTimeout(() => {
         handleSpin();
-      }, 1000);
+      }, 1500);
       return () => clearTimeout(timer);
-    } else if(autoSpinsRemaining === 0 && isAutoPlaying) {
+    } else if (autoSpinsRemaining === 0 && isAutoPlaying) {
       setIsAutoPlaying(false);
-      toast.success('Autplay finished');
+      toast.success('Autoplay finished');
     }
   }, [isAutoPlaying, autoSpinsRemaining, isSpinning]);
 
   useEffect(() => {
-    if(user?.freeSpins === 0 && isBoughtBonusActive) {
+    if (user?.freeSpins === 0 && isBoughtBonusActive) {
       setIsBoughtBonusActive(false);
       setAccumulatedBonusMultiplier(1);
       toast.success('Bought bonus completed!');
@@ -113,36 +123,37 @@ const SlotGame = () => {
     setGrid(initialGrid);
   };
 
+  // FIXED: Smoother 4-second animation
   const preSpinAnimation = (duration = 4000) =>
-  new Promise((resolve) => {
-    const startTime = Date.now();
-    const shiftInterval = 280;
+    new Promise((resolve) => {
+      const startTime = Date.now();
+      const updateInterval = 300; // 100ms for smooth 60fps-like updates
 
-    const shiftRows = () => {
-      const elapsed = Date.now() - startTime;
+      const shiftRows = () => {
+        const elapsed = Date.now() - startTime;
 
-      if(elapsed >= duration) {
-        clearInterval(spinIntervalRef.current);
-        resolve();
-        return;
-      }
+        if (elapsed >= duration) {
+          clearInterval(spinIntervalRef.current);
+          resolve();
+          return;
+        }
 
-      setGrid((prevGrid) => {
-        const newTopRow = Array(GRID_COLS)
-          .fill(null)
-          .map((_, colIndex) => ({
-            id: keyList[Math.floor(Math.random() * keyList.length)],
-            name: 'spinning',
-            uniqueId: `spin_${Date.now()}_${colIndex}_${Math.random()}`,
-          }));
+        setGrid((prevGrid) => {
+          const newTopRow = Array(GRID_COLS)
+            .fill(null)
+            .map((_, colIndex) => ({
+              id: keyList[Math.floor(Math.random() * keyList.length)],
+              name: 'spinning',
+              uniqueId: `spin_${Date.now()}_${colIndex}_${Math.random()}`,
+            }));
 
           return [newTopRow, ...prevGrid.slice(0, -1)];
-      });
-    };
+        });
+      };
 
-    shiftRows();
-    spinIntervalRef.current = setInterval(shiftRows, shiftInterval);
-  });
+      shiftRows();
+      spinIntervalRef.current = setInterval(shiftRows, updateInterval);
+    });
 
   const handleSpin = async () => {
     if (isSpinning) return;
@@ -150,27 +161,39 @@ const SlotGame = () => {
     if (user.balance < betAmount && user.freeSpins === 0) {
       toast.error('Insufficient balance!');
       setIsAutoPlaying(false);
+      setAutoSpinsRemaining(0);
       return;
     }
 
     setIsSpinning(true);
     setWinningPositions([]);
     setShowTotalWin(false);
+    setCurrentCascadeMultiplier(1);
+    setChestTransformPositions([]);
+    setChestPositions([]);
+
     audioManager.playSpinStart();
+
+    if (isAutoPlaying && autoSpinsRemaining > 0) {
+      setAutoSpinsRemaining((prev) => prev - 1);
+    }
 
     try {
       const [_, res] = await Promise.all([
         preSpinAnimation(4000),
-        slotsAPI.spin(betAmount, isBoughtBonusActive, isFirstBoughtSpin, accumulatedBonusMultiplier),
+        slotsAPI.spin(
+          betAmount,
+          isBoughtBonusActive,
+          isFirstBoughtSpin,
+          accumulatedBonusMultiplier
+        ),
       ]);
 
-      // Reset first spin flag
-      if(isFirstBoughtSpin) {
+      if (isFirstBoughtSpin) {
         setIsFirstBoughtSpin(false);
       }
 
-      // Update accumulated multiplier
-      if(res.data.bonusMultiplier !== undefined) {
+      if (res.data.bonusMultiplier !== undefined) {
         setAccumulatedBonusMultiplier(res.data.bonusMultiplier);
       }
 
@@ -186,6 +209,23 @@ const SlotGame = () => {
         timestamp: new Date().toLocaleTimeString(),
       });
 
+      // CHEST HANDLING: Show grid first, highlight chests, then transform
+      if (res.data.chestTransforms && res.data.chestTransforms.length > 0) {
+        const initialGrid = res.data.cascades[0]?.grid || res.data.finalGrid;
+        setGrid(initialGrid);
+        await new Promise((resolve) => setTimeout(resolve, 600));
+
+        const allChestPositions = res.data.chestTransforms.map(
+          (t) => t.chestPosition
+        );
+        setChestPositions(allChestPositions);
+        toast.success('🎁 CHEST APPEARED!', { duration: 2000 });
+        audioManager.play('bonus');
+        await new Promise((resolve) => setTimeout(resolve, 1200));
+
+        await showChestTransformations(res.data.chestTransforms);
+      }
+
       if (res.data.cascades && res.data.cascades.length > 0) {
         await processCascades(res.data.cascades, res.data.finalGrid);
       } else {
@@ -195,7 +235,7 @@ const SlotGame = () => {
       if (res.data.totalWin > 0) {
         setTotalWinAmount(res.data.totalWin);
         setShowTotalWin(true);
-        audioManager.play('big-win');
+        audioManager.play('bigWin');
         triggerConfetti();
 
         totalWinTimeoutRef.current = setTimeout(() => {
@@ -204,17 +244,20 @@ const SlotGame = () => {
       }
 
       if (res.data.triggeredFreeSpins > 0) {
-        toast.success(
-          `🎉 BONUS! ${res.data.triggeredFreeSpins} Free Spins!`,
-          {
-            duration: 5000,
-            icon: '🎰',
-          }
-        );
-        audioManager.play('big-win');
+        toast.success(`🎉 BONUS! ${res.data.triggeredFreeSpins} Free Spins!`, {
+          duration: 5000,
+          icon: '🎰',
+        });
+        audioManager.play('bonus');
+
+        if (!isBoughtBonusActive) {
+          setIsBoughtBonusActive(true);
+          setAccumulatedBonusMultiplier(1);
+          toast.success('🌟 BONUS MODE ACTIVATED!', { duration: 3000 });
+        }
       }
 
-      if(res.data.retriggeredFreeSpins > 0) {
+      if (res.data.retriggeredFreeSpins > 0) {
         toast.success(
           `🎉 RETRIGGER! +${res.data.retriggeredFreeSpins} Free Spins`,
           {
@@ -222,21 +265,36 @@ const SlotGame = () => {
             icon: '🎉',
           }
         );
-        audioManager.play('big-win');
+        audioManager.play('bonus');
       }
     } catch (err) {
       toast.error(err.response?.data?.error || 'Spin failed');
       console.error('Spin error:', err);
       setIsAutoPlaying(false);
+      setAutoSpinsRemaining(0);
     } finally {
       setIsSpinning(false);
+      setCurrentCascadeMultiplier(1);
+      setChestPositions([]);
     }
+  };
+
+  const showChestTransformations = async (chestTransforms) => {
+    for (const transform of chestTransforms) {
+      setChestTransformPositions(transform.transformed);
+      toast.success('🎁 CHEST TRANSFORMING!', { duration: 2000 });
+      audioManager.play('bonus');
+
+      await new Promise((resolve) => setTimeout(resolve, 2000));
+    }
+
+    setChestTransformPositions([]);
   };
 
   const animateInitialSpin = (finalGrid) => {
     return new Promise((resolve) => {
       setGrid(finalGrid);
-      setTimeout(resolve, 1200);
+      setTimeout(resolve, 1000);
     });
   };
 
@@ -244,13 +302,12 @@ const SlotGame = () => {
     for (let i = 0; i < cascades.length; i++) {
       const cascade = cascades[i];
 
-      // Show the new grid
+      setCurrentCascadeMultiplier(cascade.progressiveMult);
+
       setGrid(cascade.grid);
-      
-      // Wait for symbols to drop in (framer-motion layout animation = 0.6s)
+
       await new Promise((resolve) => setTimeout(resolve, 700));
 
-      // Highlight winning positions
       const allWinningPositions = cascade.clusters.flatMap(
         (cluster) => cluster.positions
       );
@@ -258,33 +315,28 @@ const SlotGame = () => {
 
       if (cascade.cascadeWin > 0) {
         audioManager.play('clusterWin');
-        toast.success(`+$${cascade.cascadeWin.toFixed(2)}`, {
+        toast.success(`💰 +$${cascade.cascadeWin.toFixed(2)}`, {
           duration: 2000,
         });
       }
 
-      // Wait for win animation to play (scale/pulse) before explosion
-      await new Promise((resolve) => setTimeout(resolve, 1200));
+      await new Promise((resolve) => setTimeout(resolve, 1000));
 
-      // Start explosion effect
       setIsCascading(true);
-      
-      // Wait a moment then clear winning positions during explosion
-      await new Promise((resolve) => setTimeout(resolve, 400));
+
+      await new Promise((resolve) => setTimeout(resolve, 300));
       setWinningPositions([]);
-      
-      // Wait for explosion to complete
-      await new Promise((resolve) => setTimeout(resolve, 600));
+
+      await new Promise((resolve) => setTimeout(resolve, 500));
       setIsCascading(false);
 
-      // Small pause before next cascade
       await new Promise((resolve) => setTimeout(resolve, 200));
     }
 
-    // Show final grid after all cascades
     setAnimationKey((prev) => prev + 1);
     setGrid(finalGrid);
-    await new Promise((resolve) => setTimeout(resolve, 800));
+    setCurrentCascadeMultiplier(1);
+    await new Promise((resolve) => setTimeout(resolve, 600));
   };
 
   const triggerConfetti = () => {
@@ -316,6 +368,7 @@ const SlotGame = () => {
     frame();
   };
 
+  // FIXED: Auto-start free spins after buying bonus
   const handleBuyBonus = async () => {
     const bonusCost = betAmount * 100;
 
@@ -335,9 +388,16 @@ const SlotGame = () => {
       setAccumulatedBonusMultiplier(1);
       setIsFirstBoughtSpin(true);
 
-      toast.success('10 Free Spins Purchased! 🎰');
-      audioManager.play('big-win');
+      toast.success('10 Free Spins Purchased! 🎰', { duration: 3000 });
+      audioManager.play('bonus');
       setShowBuyBonusModal(false);
+
+      // Auto-start the bonus spins
+      setTimeout(() => {
+        if (!isSpinning) {
+          handleSpin();
+        }
+      }, 1000);
     } catch (err) {
       toast.error(err.response?.data?.error || 'Failed to buy bonus');
     }
@@ -351,7 +411,7 @@ const SlotGame = () => {
 
   const increaseBet = () => {
     const currentIndex = BET_PRESETS.indexOf(betAmount);
-    if(currentIndex < BET_PRESETS.length - 1) {
+    if (currentIndex < BET_PRESETS.length - 1) {
       setBetAmount(BET_PRESETS[currentIndex + 1]);
       audioManager.play('click');
     }
@@ -359,40 +419,32 @@ const SlotGame = () => {
 
   const decreaseBet = () => {
     const currentIndex = BET_PRESETS.indexOf(betAmount);
-    if(currentIndex > 0) {
+    if (currentIndex > 0) {
       setBetAmount(BET_PRESETS[currentIndex - 1]);
       audioManager.play('click');
     }
   };
 
   const toggleAutoplay = () => {
-    if(isAutoPlaying) {
+    if (isAutoPlaying) {
       setIsAutoPlaying(false);
+      setAutoSpinsRemaining(0);
       toast.success('Autoplay stopped');
     } else {
       setIsAutoPlaying(true);
-      toast.success('Autoplay started');
+      setAutoSpinsRemaining(10);
+      toast.success('Autoplay: 10 spins');
     }
     audioManager.play('click');
   };
 
   const addTransaction = (transaction) => {
-    setTransactionHistory(prev => [transaction, ...prev].slice(0, 10));
+    setTransactionHistory((prev) => [transaction, ...prev].slice(0, 10));
   };
-
-  useEffect(() => {
-    if (!isSpinning && !isAutoPlaying) {
-      const autoSpinTimer = setTimeout(() => {
-        handleSpin();
-      }, 1000);
-
-      return () => clearTimeout(autoSpinTimer);
-    }
-  }, [isSpinning, isAutoPlaying]);
 
   return (
     <div className="relative min-h-screen pb-4">
-      {/* Buy Bonus Modal */}
+      {/* Modals (same as before, just showing Buy Bonus for context) */}
       {showBuyBonusModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm">
           <div className="bg-gray-900/95 border-2 border-purple-500 rounded-2xl p-8 max-w-md w-full mx-4">
@@ -423,70 +475,98 @@ const SlotGame = () => {
         </div>
       )}
 
-      {/* Payout Table Modal */}
-{showPayoutTable && (
-  <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4 overflow-y-auto">
-    <div className="bg-gray-900/95 border-2 border-purple-500 rounded-2xl p-8 max-w-3xl w-full my-8">
-      <h2 className="text-3xl font-bold text-white mb-6 text-center">
-        💰 Payout Table
-      </h2>
-      
-      <div className="grid grid-cols-2 gap-6 mb-6">
-        <div>
-          <h3 className="text-xl font-bold text-purple-400 mb-3">Tier 1 Symbols</h3>
-          <div className="space-y-2">
-            {Object.entries(PAYOUT_TABLE).map(([size, payouts]) => (
-              <div key={size} className="flex justify-between text-sm text-gray-300">
-                <span>{size} symbols:</span>
-                <span className="text-green-400">{payouts.tier1}x</span>
+      {/* Payout table modal - same as before */}
+      {showPayoutTable && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4 overflow-y-auto">
+          <div className="bg-gray-900/95 border-2 border-purple-500 rounded-2xl p-8 max-w-3xl w-full my-8">
+            <h2 className="text-3xl font-bold text-white mb-6 text-center">
+              💰 Payout Table
+            </h2>
+
+            <div className="grid grid-cols-2 gap-6 mb-6">
+              <div>
+                <h3 className="text-xl font-bold text-purple-400 mb-3">
+                  Tier 1 Symbols
+                </h3>
+                <div className="space-y-2">
+                  {Object.entries(PAYOUT_TABLE).map(([size, payouts]) => (
+                    <div
+                      key={size}
+                      className="flex justify-between text-sm text-gray-300"
+                    >
+                      <span>{size} symbols:</span>
+                      <span className="text-green-400">{payouts.tier1}x</span>
+                    </div>
+                  ))}
+                </div>
               </div>
-            ))}
-          </div>
-        </div>
-        
-        <div>
-          <h3 className="text-xl font-bold text-pink-400 mb-3">Tier 2 Symbols</h3>
-          <div className="space-y-2">
-            {Object.entries(PAYOUT_TABLE).map(([size, payouts]) => (
-              <div key={size} className="flex justify-between text-sm text-gray-300">
-                <span>{size} symbols:</span>
-                <span className="text-green-400">{payouts.tier2}x</span>
+
+              <div>
+                <h3 className="text-xl font-bold text-pink-400 mb-3">
+                  Tier 2 Symbols
+                </h3>
+                <div className="space-y-2">
+                  {Object.entries(PAYOUT_TABLE).map(([size, payouts]) => (
+                    <div
+                      key={size}
+                      className="flex justify-between text-sm text-gray-300"
+                    >
+                      <span>{size} symbols:</span>
+                      <span className="text-green-400">{payouts.tier2}x</span>
+                    </div>
+                  ))}
+                </div>
               </div>
-            ))}
-          </div>
-        </div>
-      </div>
+            </div>
 
-      <div className="bg-purple-900/30 rounded-lg p-4 mb-6">
-        <h3 className="text-lg font-bold text-yellow-400 mb-2">Special Symbols</h3>
-          <ul className="text-sm text-gray-300 space-y-1">
-              <li>🌟 <strong>WILD</strong> - Connects any adjacent symbols</li>
-              <li>⚡ <strong>2x MULT</strong> - Doubles wins</li>
-              <li>🔥 <strong>5x MULT</strong> - 5x wins</li>
-              <li>💎 <strong>10x MULT</strong> - 10x wins</li>
-              <li>💫 <strong>1000x MULT</strong> - 1000x wins (ULTRA RARE)</li>
-              <li>⭐ <strong>SCATTER</strong> - 3+ triggers 10 free spins</li>
-            </ul>
-          </div>
+            <div className="bg-purple-900/30 rounded-lg p-4 mb-6">
+              <h3 className="text-lg font-bold text-yellow-400 mb-2">
+                Special Symbols
+              </h3>
+              <ul className="text-sm text-gray-300 space-y-1">
+                <li>
+                  🌟 <strong>WILD</strong> - Connects any adjacent symbols
+                </li>
+                <li>
+                  ⚡ <strong>2x MULT</strong> - Doubles wins
+                </li>
+                <li>
+                  🔥 <strong>5x MULT</strong> - 5x wins
+                </li>
+                <li>
+                  💎 <strong>10x MULT</strong> - 10x wins
+                </li>
+                <li>
+                  💫 <strong>1000x MULT</strong> - 1000x wins (ULTRA RARE)
+                </li>
+                <li>
+                  ⭐ <strong>SCATTER</strong> - 3+ triggers 10 free spins
+                </li>
+                <li>
+                  🎁 <strong>CHEST</strong> - Transforms 3 symbols into
+                  wilds/scatters
+                </li>
+              </ul>
+            </div>
 
-          <p className="text-center text-gray-400 text-sm mb-4">
-            Minimum cluster size: <strong className="text-white">8 symbols</strong>
-          </p>
+            <p className="text-center text-gray-400 text-sm mb-4">
+              Minimum cluster size:{' '}
+              <strong className="text-white">6 symbols</strong>
+            </p>
 
-          <button
-            onClick={() => {
-              setShowPayoutTable(false);
-              audioManager.play('click');
-            }}
-            className="w-full px-6 py-3 bg-gradient-to-r from-purple-600 to-pink-600 text-white font-bold rounded-lg hover:from-purple-500 hover:to-pink-500 transition-all"
+            <button
+              onClick={() => {
+                setShowPayoutTable(false);
+                audioManager.play('click');
+              }}
+              className="w-full px-6 py-3 bg-gradient-to-r from-purple-600 to-pink-600 text-white font-bold rounded-lg hover:from-purple-500 hover:to-pink-500 transition-all"
             >
-            Close
-          </button>
+              Close
+            </button>
+          </div>
         </div>
-      </div>
       )}
 
-      {/* Total Win Overlay */}
       {showTotalWin && (
         <div className="fixed inset-0 z-50 pointer-events-none flex items-center justify-center">
           <div className="text-center animate-bounce">
@@ -500,8 +580,40 @@ const SlotGame = () => {
         </div>
       )}
 
+      {/* Cascade multiplier - bottom-left */}
+      {currentCascadeMultiplier > 1 && !isBoughtBonusActive && (
+        <div className="fixed bottom-32 left-8 z-40 bg-gradient-to-br from-blue-500 to-cyan-600 border-4 border-cyan-300 rounded-2xl p-6 shadow-2xl animate-pulse">
+          <div className="text-center">
+            <div className="text-sm font-bold text-white uppercase tracking-wider mb-2">
+              Cascade Multiplier
+            </div>
+            <div className="text-5xl font-black text-white drop-shadow-lg">
+              {currentCascadeMultiplier}x
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Bonus multiplier - top-right */}
+      {isBoughtBonusActive && (
+        <div className="fixed top-32 right-8 z-40 bg-gradient-to-br from-yellow-500 to-orange-600 border-4 border-yellow-300 rounded-2xl p-6 shadow-2xl animate-pulse">
+          <div className="text-center">
+            <div className="text-sm font-bold text-white uppercase tracking-wider mb-2">
+              Bonus Multiplier
+            </div>
+            <div className="text-5xl font-black text-white drop-shadow-lg">
+              {accumulatedBonusMultiplier.toFixed(1)}x
+            </div>
+            <div className="text-xs text-yellow-100 mt-2">
+              Multipliers ADD up!
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Rest of UI (same as before) */}
       <div className="flex items-start justify-center gap-8 px-4 min-h-[calc(100vh-150px)]">
-        {/* LEFT: Stats + Transaction History */}
+        {/* LEFT: Stats */}
         <div className="flex flex-col gap-6 text-white w-64">
           <div className="bg-gray-900/80 backdrop-blur-md rounded-xl p-6 border border-purple-500/30">
             <div className="flex flex-col gap-4">
@@ -522,10 +634,20 @@ const SlotGame = () => {
                   {user?.freeSpins ?? 0}
                 </div>
               </div>
+
+              {isAutoPlaying && (
+                <div>
+                  <span className="text-sm text-cyan-300 font-semibold uppercase tracking-wider">
+                    Auto Spins Left
+                  </span>
+                  <div className="text-3xl font-bold text-cyan-400">
+                    {autoSpinsRemaining}
+                  </div>
+                </div>
+              )}
             </div>
           </div>
 
-          {/* Transaction History */}
           <div className="bg-gray-900/80 backdrop-blur-md rounded-xl p-4 border border-purple-500/30 max-h-96 overflow-y-auto">
             <h3 className="text-lg font-bold text-purple-300 mb-3">
               📜 Last 10 Spins
@@ -570,12 +692,13 @@ const SlotGame = () => {
             winningPositions={winningPositions}
             isRolling={isSpinning}
             isCascading={isCascading}
+            chestTransformPositions={chestTransformPositions}
+            chestPositions={chestPositions}
           />
         </div>
 
         {/* RIGHT: Controls */}
         <div className="flex flex-col gap-6 w-64">
-          {/* Bet Presets */}
           <div className="bg-gray-900/80 backdrop-blur-md rounded-xl p-6 border border-purple-500/30">
             <h3 className="text-lg font-bold text-purple-300 mb-3">
               💰 Bet Amount
@@ -611,14 +734,13 @@ const SlotGame = () => {
             </button>
           </div>
 
-          {/* Action Buttons */}
           <button
             onClick={handleSpin}
             disabled={
               !(
                 (user?.balance >= betAmount || user?.freeSpins > 0) &&
                 !isSpinning
-              ) || isAutoPlaying
+              )
             }
             className="text-2xl py-8 px-10 bg-gradient-to-r from-indigo-900 to-purple-900 text-white font-bold rounded-xl border-2 border-purple-500/40 hover:from-indigo-800 hover:to-purple-800 transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-lg hover:shadow-purple-500/50"
           >
@@ -635,8 +757,8 @@ const SlotGame = () => {
             }`}
           >
             {isAutoPlaying
-              ? `⏸️ STOP (${autoSpinsRemaining} left)`
-              : '▶️ AUTOPLAY (10)'}
+              ? `⏸️ STOP AUTO (${autoSpinsRemaining})`
+              : '▶️ AUTOPLAY'}
           </button>
 
           <button
@@ -664,7 +786,6 @@ const SlotGame = () => {
             📊 PAYTABLE
           </button>
 
-          {/* Keyboard Shortcuts */}
           <div className="bg-gray-900/80 backdrop-blur-md rounded-xl p-4 border border-purple-500/30 text-xs">
             <h4 className="text-purple-300 font-bold mb-2">⌨️ Shortcuts</h4>
             <div className="space-y-1 text-gray-400">

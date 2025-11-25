@@ -20,7 +20,7 @@ class AudioManager {
 
     this.enabled = true;
     this.ambientPlaying = false;
-    this.ambientUnlocked - false;
+    this.ambientUnlocked = false;
   }
 
   toggle() {
