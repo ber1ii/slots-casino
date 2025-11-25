@@ -147,7 +147,7 @@ const GRID_COLS = 6;
 const MIN_CLUSTER_SIZE = 6;
 const FREE_SPINS_TRIGGER = 3;
 const FREE_SPINS_AMOUNT = 10;
-const RETRIGGER_AMOUNT = 5;
+const RETRIGGER_AMOUNT = 10;
 const BUY_BONUS_COST = 100;
 let symbolIdCounter = 0;
 
@@ -554,7 +554,7 @@ function processSpin(betAmount, isBoughtBonus = false, guaranteeWin = false, bon
     }
 
     // Progressive cascade multiplier
-    const progressiveMult = cascadeCount + 1;
+    const progressiveMult = !isBoughtBonus ? cascadeCount + 1 : 1;
 
     let cascadeWin = 0;
     clusters.forEach((cluster) => {
@@ -565,15 +565,19 @@ function processSpin(betAmount, isBoughtBonus = false, guaranteeWin = false, bon
 
     const multipliers = getMultipliers(grid);
     
-    // During bought bonus: accumulate multipliers and appli to EACH cascade
+    // During BONUS, ADD multipliers to accumulator
     if(isBoughtBonus && multipliers.length > 0) {
-      const cascadeMultiplier = multipliers.reduce((acc, m) => acc * m, 1);
-      currentBonusMultiplier += cascadeMultiplier;
+      const sumOfMultipliers = multipliers.reduce((sum, m) => sum + m, 0);
+      currentBonusMultiplier += sumOfMultipliers;
+    }
+
+    // Apply bonus mult to each cascade win
+    if(isBoughtBonus) {
       cascadeWin *= currentBonusMultiplier;
-    } else if(!isBoughtBonus && multipliers.length > 0) {
-      // Normal mode
+    } else if(multipliers.length > 0) {
+      // Normal mode: multiply cascade win
       const cascadeMultiplier = multipliers.reduce((acc, m) => acc * m, 1);
-      cascadeWin *= cascadeMultiplier
+      cascadeWin *= cascadeMultiplier;
     }
 
     // Store grid BEFORE cascade (where clusters were found)

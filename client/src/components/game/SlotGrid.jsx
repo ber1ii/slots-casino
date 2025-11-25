@@ -62,10 +62,9 @@ const SlotGrid = ({
                 return (
                   <motion.div
                     key={symbol.uniqueId}
-                    layout={!isRolling}
                     layoutId={symbol.uniqueId}
                     initial={{
-                      y: isRolling ? -150 : -80,
+                      y: isRolling ? -150 : 0,
                       opacity: isRolling ? 1 : 0,
                     }}
                     animate={{
@@ -73,48 +72,37 @@ const SlotGrid = ({
                       opacity: 1,
                       scale:
                         isTransforming || isChestHighlight
-                          ? [1, 1.3, 1]
+                          ? [1, 1.35, 1]
                           : 1,
                       filter: isTransforming
                         ? [
                             'brightness(1)',
-                            'brightness(2.5) drop-shadow(0 0 30px rgba(255,215,0,1))',
+                            'brightness(3) drop-shadow(0 0 40px rgba(255,215,0,1))',
                             'brightness(1)',
                           ]
                         : isChestHighlight
-                        ? [
-                            'brightness(1)',
-                            'brightness(2) drop-shadow(0 0 25px rgba(255,105,180,1))',
-                            'brightness(1.5) drop-shadow(0 0 20px rgba(255,105,180,0.8))',
-                          ]
+                        ? 'brightness(1.8) drop-shadow(0 0 25px rgba(255,105,180,1))'
                         : 'brightness(1)',
                     }}
                     exit={{
-                      y: isRolling ? 150 : 0,
-                      opacity: isRolling ? 1 : 0,
-                      scale: isRolling ? 1 : 0.7,
+                      opacity: 0,
+                      scale: 0.5,
                     }}
                     transition={{
                       y: {
-                        type: 'tween',
-                        duration: isRolling ? 0.08 : 0.6,
-                        ease: isRolling ? 'linear' : [0.25, 0.1, 0.25, 1],
+                        type: 'spring',
+                        stiffness: 300,
+                        damping: 30,
+                        duration: isRolling ? 0.15 : 0.5,
                       },
-                      opacity: { duration: isRolling ? 0.08 : 0.2 },
+                      opacity: { duration: isRolling ? 0.1 : 0.3 },
                       scale: {
-                        duration:
-                          isTransforming || isChestHighlight ? 1.2 : 0.2,
-                        repeat:
-                          isTransforming || isChestHighlight ? 1 : 0,
+                        duration: isTransforming || isChestHighlight ? 1.5 : 0.3,
+                        ease: 'easeInOut',
                       },
                       filter: {
-                        duration: isTransforming || isChestHighlight ? 1.2 : 0,
-                        repeat:
-                          isTransforming || isChestHighlight ? 1 : 0,
-                      },
-                      layout: {
-                        duration: 0.6,
-                        ease: [0.25, 0.1, 0.25, 1],
+                        duration: 1.5,
+                        ease: 'easeInOut',
                       },
                     }}
                     className="w-full h-full"
