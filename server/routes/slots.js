@@ -84,7 +84,7 @@ const SYMBOLS = {
     MULTIPLIER_1000X: {
         id: 'MULTIPLIER_1000X',
         symbol: '💫',
-        weight: 0.03,
+        weight: 0.025,
         multiplier: 1000,
         name: '1000x Multiplier',
     },
@@ -100,7 +100,7 @@ const SYMBOLS = {
     CHEST: {
       id: 'CHEST',
       symbol: '🎁',
-      weight: 0.4,
+      weight: 0.3,
       name: 'Chest'
     },
 
@@ -108,9 +108,15 @@ const SYMBOLS = {
     SCATTER: {
         id: 'SCATTER',
         symbol: '⭐',
-        weight: 0.65,
+        weight: 0.5,
         name: 'Scatter',
     },
+    CHEST_OPENED: {
+      id: 'CHEST_OPENED',
+      symbol: '📦',
+      weight: 0,
+      name: 'Opened Chest',
+    }
 };
 
 // Payout table
@@ -147,13 +153,16 @@ const GRID_COLS = 6;
 const MIN_CLUSTER_SIZE = 6;
 const FREE_SPINS_TRIGGER = 3;
 const FREE_SPINS_AMOUNT = 10;
-const RETRIGGER_AMOUNT = 10;
 const BUY_BONUS_COST = 100;
 let symbolIdCounter = 0;
 
 // Generate weighted symbol randomly
-function getRandomSymbol(isBoughtBonus = false) {
-    const symbolArray = Object.values(SYMBOLS);
+function getRandomSymbol(isBoughtBonus = false, excludeChest = false) {
+    let symbolArray = Object.values(SYMBOLS);
+
+    if(excludeChest) {
+      symbolArray = symbolArray.filter(s => s.id !== 'CHEST');
+    }
 
     const weights = symbolArray.map((s) => {
       if(!isBoughtBonus) return s.weight;
@@ -189,12 +198,19 @@ function getRandomSymbol(isBoughtBonus = false) {
 }
 
 // Generate 6x5 grid
-function generateGrid(isBoughtBonus = false, guaranteeWin = false) {
+function generateGrid(isBoughtBonus = false, guaranteeWin = false, strictNoChest = false) {
     const grid = [];
+    let hasChest = strictNoChest;
+
     for(let row = 0; row < GRID_ROWS; row++) {
         const rowData = [];
         for(let col = 0; col < GRID_COLS; col++) {
-            rowData.push(getRandomSymbol());
+          const symbol = getRandomSymbol(isBoughtBonus, hasChest);
+          
+          if(symbol.id === 'CHEST') {
+            hasChest = true;
+          }
+          rowData.push(symbol);
         }
 
         grid.push(rowData);
@@ -234,6 +250,8 @@ function processChest(grid) {
 
   if(chestPositions.length === 0) return { grid, chestTransforms: [] };
 
+  const chestRow = chestPositions[0][0];
+  const chestCol = chestPositions[0][1];
   const chestTransforms = [];
 
   chestPositions.forEach(([chestRow, chestCol]) => {
@@ -243,7 +261,11 @@ function processChest(grid) {
 
     for(let row = 0; row < GRID_ROWS; row++) {
       for(let col = 0; col < GRID_COLS; col++) {
+        if(row === chestRow && col === chestCol) continue;
+
         const symbol = grid[row][col];
+
+        if(symbol.id === 'WILD' || symbol.id === 'SCATTER' || symbol.multiplier) continue;
 
         if(symbol.tier === 1) {
           tier1Positions.push([row, col]);
@@ -272,6 +294,8 @@ function processChest(grid) {
       }
     }
 
+    if(targetsToTransform.length === 0) return;
+
     // Choose 4 cases
     const cases = [
       { scatters: 3, wilds: 0, probability: 0.05 },
@@ -292,31 +316,50 @@ function processChest(grid) {
       }
     }
 
-    const newSymbols = [];
+    const originalSymbols = targetsToTransform.map(([row, col]) => ({
+      position: [row, col],
+      symbolId: grid[row][col].id,
+      symbolName: grid[row][col].name,
+      uniqueId: grid[row][col].uniqueId,
+    }));
+
+    const newSymbolsKeys = [];
 
     for(let i = 0; i < chosenCase.scatters; i++) {
-      newSymbols.push('SCATTER');
+      newSymbolsKeys.push('SCATTER');
     }
     for(let i = 0; i < chosenCase.wilds; i++) {
-      newSymbols.push('WILD');
+      newSymbolsKeys.push('WILD');
     }
+
+    const resultingSymbols = [];
 
     // Apply transformations
     targetsToTransform.forEach(([row, col], idx) => {
-      if(newSymbols[idx]) {
-        grid[row][col] = {
-          ...SYMBOLS[newSymbols[idx]],
-          uniqueId: `${newSymbols[idx]}_${symbolIdCounter++}`,
+      if(newSymbolsKeys[idx]) {
+        const newSym = {
+          ...SYMBOLS[newSymbolsKeys[idx]],
+          uniqueId: `${newSymbolsKeys[idx]}_transformed_${symbolIdCounter++}`,
         };
+        grid[row][col] = newSym;
+        resultingSymbols.push(newSym);
       }
     });
 
     chestTransforms.push({
       chestPosition: [chestRow, chestCol],
+      chestUniqueId: grid[chestRow][chestCol].uniqueId,
       transformed: targetsToTransform,
+      originalSymbols,
+      resultingSymbols,
       case: chosenCase,
     });
   });
+
+  grid[chestRow][chestCol] = {
+    ...SYMBOLS.CHEST_OPENED,
+    uniqueId: grid[chestRow][chestCol].uniqueId
+  };
 
   return { grid, chestTransforms };
 }
@@ -335,6 +378,17 @@ function findClusters(grid) {
 
         if (!symbol || !symbol.id) {
           visited[row][col] = true;
+          continue;
+        }
+
+        if(symbol.id === 'CHEST_OPENED') {
+          visited[row][col] = true;
+          clusters.push({
+            symbol: symbol,
+            positions: [[row, col]],
+            size: 1,
+            tier: 1,
+          });
           continue;
         }
 
@@ -420,14 +474,16 @@ function bfs(grid, startRow, startCol, symbolId, visited) {
 
 // Calculate payout for clusters
 function calculateClusterPayout(cluster, betAmount) {
-    const size = cluster.size;
-    const tier = cluster.tier || cluster.symbol.tier;
+  if(cluster.symbol.id === 'CHEST_OPENED') return 0;    
+  
+  const size = cluster.size;
+  const tier = cluster.tier || cluster.symbol.tier;
 
-    if(!PAYOUTS[size]) return 0;
+  if(!PAYOUTS[size]) return 0;
 
-    const multiplier = tier === 1 ? PAYOUTS[size].tier1 : PAYOUTS[size].tier2;
+  const multiplier = tier === 1 ? PAYOUTS[size].tier1 : PAYOUTS[size].tier2;
 
-    return betAmount * multiplier;
+  return betAmount * multiplier;
 }
 
 // Count scatters on grid
@@ -462,22 +518,8 @@ function getMultipliers(grid) {
     return multipliers;
 }
 
-function getWildPositions(grid) {
-  const wilds = [];
-
-  for(let row = 0; row < GRID_ROWS; row++) {
-    for(let col = 0; col < GRID_COLS; col++) {
-      if(grid[row][col].id === 'WILD') {
-        wilds.push([row, col]);
-      }
-    }
-  }
-
-  return wilds;
-}
-
-// Remove winning symbols and drop new ones - FIXED VERSION
-function cascadeGrid(grid, clusters, isBoughtBonus = false) {
+// Remove winning symbols and drop new ones
+function cascadeGrid(grid, clusters, isBoughtBonus = false, strictNoChest = false) {
   const toRemove = new Set();
 
   clusters.forEach((cluster) => {
@@ -485,6 +527,20 @@ function cascadeGrid(grid, clusters, isBoughtBonus = false) {
       toRemove.add(`${row},${col}`);
     });
   });
+
+  let hasChestOnGrid = strictNoChest;
+  if(!hasChestOnGrid) {
+    for(let row = 0; row < GRID_ROWS; row++) {
+      for(let col = 0; col < GRID_COLS; col++) {
+        if(!toRemove.has(`${row},${col}`)) {
+          // Check for unopened chests
+          if(grid[row][col] && grid[row][col].id === 'CHEST') {
+            hasChestOnGrid = true;
+          }
+        }
+      }
+    }
+  }
 
   const newGrid = [];
   for (let row = 0; row < GRID_ROWS; row++) {
@@ -503,7 +559,13 @@ function cascadeGrid(grid, clusters, isBoughtBonus = false) {
     const newSymbolsNeeded = GRID_ROWS - survivingSymbols.length;
 
     for (let i = 0; i < newSymbolsNeeded; i++) {
-      survivingSymbols.unshift(getRandomSymbol(isBoughtBonus));
+      const newSymbol = getRandomSymbol(isBoughtBonus, hasChestOnGrid);
+
+      if(newSymbol.id === 'CHEST') {
+        hasChestOnGrid = true;
+      }
+
+      survivingSymbols.unshift(newSymbol);
     }
 
     for (let row = 0; row < GRID_ROWS; row++) {
@@ -525,9 +587,19 @@ function cascadeGrid(grid, clusters, isBoughtBonus = false) {
 }
 // Process complete spin with cascading
 function processSpin(betAmount, isBoughtBonus = false, guaranteeWin = false, bonusMultiplier = 1) {
-  let grid = generateGrid(isBoughtBonus, guaranteeWin);
+  let chestHasAppearedInSpin = false;
+  
+  let grid = generateGrid(isBoughtBonus, guaranteeWin, false);
 
-  const { grid: processGrid, chestTransforms } = processChest(grid);
+  const initialGrid = grid.map(row => row.map(cell => ({ ...cell })));
+
+  for(let r = 0; r < GRID_ROWS; r++) {
+    for(let c = 0; c < GRID_COLS; c++) {
+      if(grid[r][c].id === 'CHEST') chestHasAppearedInSpin = true;
+    }
+  }
+
+  const { grid: processGrid, chestTransforms: initialChestTransforms } = processChest(grid);
   grid = processGrid;
 
   let totalWin = 0;
@@ -537,10 +609,6 @@ function processSpin(betAmount, isBoughtBonus = false, guaranteeWin = false, bon
   const scatterCount = countScatters(grid);
   const triggeredFreeSpins =
     scatterCount >= FREE_SPINS_TRIGGER ? FREE_SPINS_AMOUNT : 0;
-  const retriggeredFreeSpins =
-    isBoughtBonus && scatterCount >= FREE_SPINS_TRIGGER
-      ? RETRIGGER_AMOUNT
-      : 0;
 
   let cascadeCount = 0;
   let hasWins = true;
@@ -580,10 +648,32 @@ function processSpin(betAmount, isBoughtBonus = false, guaranteeWin = false, bon
       cascadeWin *= cascadeMultiplier;
     }
 
-    // Store grid BEFORE cascade (where clusters were found)
+    const currentStepGrid = grid.map(row => [...row]);
+
+    totalWin += cascadeWin;
+
+    grid = cascadeGrid(grid, clusters, isBoughtBonus, chestHasAppearedInSpin);
+
+    if(!chestHasAppearedInSpin) {
+      for(let r = 0; r < GRID_ROWS; r++) {
+        for(let c = 0; c < GRID_COLS; c++) {
+          if(grid[r][c].id === 'CHEST') {
+            chestHasAppearedInSpin = true;
+          }
+        }
+      }
+    }
+
+    const { grid: gridAfterChestCheck, chestTransforms: cascadeChestTransforms } = processChest(grid);
+
+    if(cascadeChestTransforms.length > 0) {
+      grid = gridAfterChestCheck;
+    }
+
     cascades.push({
       cascadeNumber: cascadeCount + 1,
-      grid: grid.map(row => [...row]),
+      grid: currentStepGrid, 
+      nextGridState: grid, 
       clusters: clusters.map((c) => ({
         symbol: c.symbol.symbol,
         size: c.size,
@@ -593,12 +683,9 @@ function processSpin(betAmount, isBoughtBonus = false, guaranteeWin = false, bon
       multipliers,
       progressiveMult,
       bonusMultiplier: isBoughtBonus ? currentBonusMultiplier : null,
+      chestTransforms: cascadeChestTransforms, 
     });
 
-    totalWin += cascadeWin;
-
-    // NOW cascade for next iteration
-    grid = cascadeGrid(grid, clusters, isBoughtBonus);
     cascadeCount++;
 
     if (cascadeCount > 50) break;
@@ -606,12 +693,12 @@ function processSpin(betAmount, isBoughtBonus = false, guaranteeWin = false, bon
 
   return {
     finalGrid: grid,
+    initialGrid,
     totalWin,
     cascades,
     scatterCount,
     triggeredFreeSpins,
-    retriggeredFreeSpins,
-    chestTransforms,
+    initialChestTransforms,
     bonusMultiplier: currentBonusMultiplier,
     isBoughtBonus,
   };
@@ -661,10 +748,6 @@ router.post('/spin', authMiddleware, async (req, res) => {
         // Add free spins if triggered
         if(result.triggeredFreeSpins > 0) {
             user.freeSpins += result.triggeredFreeSpins;
-        }
-
-        if(result.retriggeredFreeSpins > 0) {
-          user.freeSpins += result.retriggeredFreeSpins;
         }
 
         await user.save();

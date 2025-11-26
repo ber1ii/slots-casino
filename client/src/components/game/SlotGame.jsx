@@ -12,50 +12,68 @@ import {
   SYMBOL_SPRITES,
   PAYOUT_TABLE,
 } from '../../config/gameConfig';
+import { transform } from 'framer-motion';
+
+const getGridBeforeChests = (baseGrid, chestTransforms) => {
+    const tempGrid = baseGrid.map(row => row.map(cell => ({ ...cell })));
+
+    chestTransforms.forEach((transform) => {
+      const [cRow, cCol] = transform.chestPosition;
+
+      tempGrid[cRow][cCol] = {
+        id: 'CHEST',
+        uniqueId: transform.chestUniqueId || `chest_${cRow}_${cCol}_anim`,
+        name: 'Chest'
+      };
+
+      transform.originalSymbols.forEach((orig) => {
+        const [oRow, oCol] = orig.position;
+        tempGrid[oRow][oCol] = {
+          id: orig.symbolId,
+          uniqueId: orig.uniqueId || `orig_${oRow}_${oCol}_anim`,
+          name: orig.symbolName
+        };
+      });
+    });
+
+    return tempGrid;
+  }
 
 const SlotGame = () => {
   const { user, updateUser } = useAuth();
   const [grid, setGrid] = useState([]);
   const [betAmount, setBetAmount] = useState(0.2);
   const [isSpinning, setIsSpinning] = useState(false);
+  const [isReelSpinning, setIsReelSpinning] = useState(false);
   const [winningPositions, setWinningPositions] = useState([]);
   const [isCascading, setIsCascading] = useState(false);
   const [showTotalWin, setShowTotalWin] = useState(false);
   const [totalWinAmount, setTotalWinAmount] = useState(0);
 
-  //const [animationKey, setAnimationKey] = useState(0);
   const [isAutoPlaying, setIsAutoPlaying] = useState(false);
-
   const [showBuyBonusModal, setShowBuyBonusModal] = useState(false);
   const [transactionHistory, setTransactionHistory] = useState([]);
   const [showPayoutTable, setShowPayoutTable] = useState(false);
 
   const [isBoughtBonusActive, setIsBoughtBonusActive] = useState(false);
-  const [accumulatedBonusMultiplier, setAccumulatedBonusMultiplier] =
-    useState(1);
+  const [accumulatedBonusMultiplier, setAccumulatedBonusMultiplier] = useState(1);
   const [isFirstBoughtSpin, setIsFirstBoughtSpin] = useState(false);
 
+  const [bonusTotalWin, setBonusTotalWin] = useState(0);
   const [currentDisplayMultiplier, setCurrentDisplayMultiplier] = useState(1);
 
   const [chestTransformPositions, setChestTransformPositions] = useState([]);
   const [chestPositions, setChestPositions] = useState([]);
-  const [originalChestSymbols, setOriginalChestSymbols] = useState([]);
 
   const cascadeTimeoutRef = useRef(null);
   const totalWinTimeoutRef = useRef(null);
-  const spinIntervalRef = useRef(null);
   const keyList = Object.keys(SYMBOL_SPRITES);
 
   useEffect(() => {
     initializeGrid();
     return () => {
-      if (cascadeTimeoutRef.current) clearTimeout(cascadeTimeoutRef.current);
-      if (totalWinTimeoutRef.current)
-        clearTimeout(totalWinTimeoutRef.current);
-      if (spinIntervalRef.current) {
-        clearInterval(spinIntervalRef.current);
-        cancelAnimationFrame(spinIntervalRef.current);
-      }
+      if(cascadeTimeoutRef.current) clearTimeout(cascadeTimeoutRef.current);
+      if(totalWinTimeoutRef.current) clearTimeout(totalWinTimeoutRef.current);
     };
   }, []);
 
@@ -113,9 +131,27 @@ const SlotGame = () => {
       setIsBoughtBonusActive(false);
       setAccumulatedBonusMultiplier(1);
       setCurrentDisplayMultiplier(1);
-      toast.success('Bought bonus completed!');
+      
+      if(bonusTotalWin > 0) {
+        setTotalWinAmount(bonusTotalWin);
+        setShowTotalWin(true);
+        audioManager.play('bigWin');
+        triggerConfetti();
+
+        toast.success(`🎉 BONUS COMPLETE! Total: $${bonusTotalWin.toFixed(2)}`, {
+          duration: 5000,
+        });
+
+        setTimeout(() => {
+          setShowTotalWin(false);
+          setBonusTotalWin(0);
+        }, 5000);
+      } else {
+        toast.success('Bonus round completed!');
+        setBonusTotalWin(0);
+      }
     }
-  }, [user?.freeSpins, isBoughtBonusActive]);
+  }, [user?.freeSpins, isBoughtBonusActive, bonusTotalWin]);
 
   const initializeGrid = () => {
     const initialGrid = Array(GRID_ROWS)
@@ -132,38 +168,6 @@ const SlotGame = () => {
     setGrid(initialGrid);
   };
 
-  // Smoother 4-second animation
-  const preSpinAnimation = (duration = 4000) =>
-    new Promise((resolve) => {
-      const startTime = Date.now();
-      const updateInterval = 300; // 100ms for smooth 60fps-like updates
-
-      const shiftRows = () => {
-        const elapsed = Date.now() - startTime;
-
-        if (elapsed >= duration) {
-          clearInterval(spinIntervalRef.current);
-          resolve();
-          return;
-        }
-
-        setGrid((prevGrid) => {
-          const newTopRow = Array(GRID_COLS)
-            .fill(null)
-            .map((_, colIndex) => ({
-              id: keyList[Math.floor(Math.random() * keyList.length)],
-              name: 'spinning',
-              uniqueId: `spin_${Date.now()}_${colIndex}_${Math.random()}`,
-            }));
-
-          return [newTopRow, ...prevGrid.slice(0, -1)];
-        });
-      };
-
-      shiftRows();
-      spinIntervalRef.current = setInterval(shiftRows, updateInterval);
-    });
-
   const handleSpin = async () => {
     if (isSpinning) return;
 
@@ -174,13 +178,16 @@ const SlotGame = () => {
     }
 
     setIsSpinning(true);
+    setIsReelSpinning(true);
     setWinningPositions([]);
-    setShowTotalWin(false);
+    
+    if(!isBoughtBonusActive) {
+      setShowTotalWin(false);
+    }
+
     setChestTransformPositions([]);
     setChestPositions([]);
-    setOriginalChestSymbols([]);
 
-    // Reset mult display
     if(!isBoughtBonusActive) {
       setCurrentDisplayMultiplier(1);
     }
@@ -188,15 +195,26 @@ const SlotGame = () => {
     audioManager.playSpinStart();
 
     try {
-      const [_, res] = await Promise.all([
-        preSpinAnimation(4000),
-        slotsAPI.spin(
-          betAmount,
-          isBoughtBonusActive,
-          isFirstBoughtSpin,
-          accumulatedBonusMultiplier
-        ),
+      // API call
+      const spinPromise = slotsAPI.spin(
+        betAmount,
+        isBoughtBonusActive,
+        isFirstBoughtSpin,
+        accumulatedBonusMultiplier
+      );
+
+      // Wait for both the API AND the animation duration
+      const [res] = await Promise.all([
+        spinPromise,
+        new Promise(resolve => setTimeout(resolve, 3800)) 
       ]);
+
+      setIsReelSpinning(false);
+      
+      const initialChestTransforms = res.data.initialChestTransforms || [];
+      let initialVisualGrid = res.data.initialGrid || res.data.finalGrid;
+      
+      setGrid(initialVisualGrid);
 
       if(isFirstBoughtSpin) {
         setIsFirstBoughtSpin(false);
@@ -221,20 +239,26 @@ const SlotGame = () => {
         timestamp: new Date().toLocaleTimeString(),
       });
 
-      if(res.data.chestTransforms && res.data.chestTransforms.length > 0) {
+      if(isBoughtBonusActive && res.data.totalWin > 0) {
+        setBonusTotalWin((prev) => prev + res.data.totalWin);
+      }
+
+      // Handle Chests
+      if(initialChestTransforms.length > 0) {
+        await new Promise(resolve => setTimeout(resolve, 200));
         await handleChestSequence(
-          res.data.chestTransforms,
-          res.data.cascades[0]?.grid || res.data.finalGrid
+          initialChestTransforms,
+          initialVisualGrid
         );
       }
 
+      // Handle Cascades
       if(res.data.cascades && res.data.cascades.length > 0) {
         await processCascades(res.data.cascades, res.data.finalGrid);
-      } else {
-        await animateInitialSpin(res.data.finalGrid);
-      }
-
-      if(res.data.totalWin > 0) {
+      } 
+      
+      // Handle Win Display
+      if(res.data.totalWin > 0 && !isBoughtBonusActive) {
         setTotalWinAmount(res.data.totalWin);
         setShowTotalWin(true);
         audioManager.play('bigWin');
@@ -243,6 +267,10 @@ const SlotGame = () => {
         totalWinTimeoutRef.current = setTimeout(() => {
           setShowTotalWin(false);
         }, 4000);
+      } else if(res.data.totalWin > 0 && isBoughtBonusActive) {
+        toast.success(`💰 Spin Win: $${res.data.totalWin.toFixed(2)}`, {
+          duration: 2000,
+        });
       }
 
       if (res.data.triggeredFreeSpins > 0) {
@@ -256,24 +284,15 @@ const SlotGame = () => {
           setIsBoughtBonusActive(true);
           setAccumulatedBonusMultiplier(1);
           setCurrentDisplayMultiplier(1);
+          setBonusTotalWin(0);
           toast.success('🌟 BONUS MODE ACTIVATED!', { duration: 3000 });
         }
-      }
-
-      if (res.data.retriggeredFreeSpins > 0) {
-        toast.success(
-          `🎉 RETRIGGER! +${res.data.retriggeredFreeSpins} Free Spins`,
-          {
-            duration: 5000,
-            icon: '🎉',
-          }
-        );
-        audioManager.play('bigWin');
       }
     } catch (err) {
       toast.error(err.response?.data?.error || 'Spin failed');
       console.error('Spin error:', err);
       setIsAutoPlaying(false);
+      setIsReelSpinning(false); // Safety turn off
     } finally {
       setIsSpinning(false);
       if(!isBoughtBonusActive) {
@@ -282,72 +301,77 @@ const SlotGame = () => {
     }
   };
 
-  const handleChestSequence = async (chestTransforms, initialGrid) => {
-    // Show initial grid with chests
-    setGrid(initialGrid);
-    await new Promise((resolve) => setTimeout(resolve, 600));
+  const handleChestSequence = async (chestTransforms, gridBeforeChests) => {
+    // Force grid to state before chests open
+    setGrid(gridBeforeChests);
+    await new Promise((resolve) => setTimeout(resolve, 500));
 
-    // Highlight ALL Chests
+    // 1. Highlight chests
     const allChestPositions = chestTransforms.map((t) => t.chestPosition);
-    setChestPositions(allChestPositions);
+    setChestPositions(allChestPositions); // Passed to Grid, triggers 'chestHighlight' variant
+    
     toast.success('🎁 CHEST APPEARED!', { duration: 2000 });
     audioManager.play('bigWin');
-    await new Promise((resolve) => setTimeout(resolve, 1500));
+    await new Promise((resolve) => setTimeout(resolve, 1000));
 
-    // Remove chest Highlights
     setChestPositions([]);
     await new Promise((resolve) => setTimeout(resolve, 300));
 
-    // For each chest, highlight targets then transform
+    // 2. For each chest, highlight original symbols, then transform
     for(const transform of chestTransforms) {
-      setChestTransformPositions(transform.transformed);
-      await new Promise((resolve) => setTimeout(resolve, 1200));
+      const originalPositions = transform.originalSymbols.map((s) => s.position);
 
-      // Transform the symbols
+      // Highlight original symbols
+      setChestTransformPositions(originalPositions);
+      toast.success('TRANSFORMING...', { duration: 1500 });
+      await new Promise((resolve) => setTimeout(resolve, 1000));
+
+      // Apply transformation (Update data)
       setGrid((prevGrid) => {
         const newGrid = prevGrid.map((row) => [...row]);
 
-        transform.transformed.forEach(([row, col], idx) => {
-          const transformedSymbol =
-            idx < transform.case.scatters ? 'SCATTER' : 'WILD';
-
-          newGrid[row][col] = {
-            id: transformedSymbol,
-            uniqueId: `${transformedSymbol}_transformed_${Date.now()}_${idx}`,
-            ...SYMBOL_SPRITES[transformedSymbol],
-          };
+        transform.resultingSymbols.forEach((resulstingSym, idx) => {
+          const [row, col] = transform.transformed[idx];
+          newGrid[row][col] = resulstingSym;
         });
+
+        const [cRow, cCol] = transform.chestPosition;
+        newGrid[cRow][cCol] = {
+          ...newGrid[cRow][cCol],
+          id: 'CHEST_OPENED',
+          name: 'Opened Chest'
+        };
 
         return newGrid;
       });
 
       await new Promise((resolve) => setTimeout(resolve, 800));
       setChestTransformPositions([]);
-      await new Promise((resolve) => setTimeout(resolve, 400));
+      await new Promise((resolve) => setTimeout(resolve, 300));
     }
   };
 
-  const animateInitialSpin = (finalGrid) => {
-    return new Promise((resolve) => {
-      setGrid(finalGrid);
-      setTimeout(resolve, 1000);
-    });
-  };
+  const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
   const processCascades = async (cascades, finalGrid) => {
     for (let i = 0; i < cascades.length; i++) {
       const cascade = cascades[i];
+      const isLast = i === cascades.length - 1;
+      const nextGrid = cascade.nextGridState;
 
       if(!isBoughtBonusActive) {
         setCurrentDisplayMultiplier(cascade.progressiveMult);
       }
 
       setGrid(cascade.grid);
-      await new Promise((resolve) => setTimeout(resolve, 700));
+      await sleep(800);
 
-      const allWinningPositions = cascade.clusters.flatMap(
-        (cluster) => cluster.positions
-      );
+      const allWinningPositions = cascade.clusters.flatMap((cluster) => {
+        if(cluster.symbol === '📦' || cluster.symbol === 'CHEST_OPENED') {
+          return [];
+        }
+        return cluster.positions;
+      });
       setWinningPositions(allWinningPositions);
 
       if (cascade.cascadeWin > 0) {
@@ -357,26 +381,32 @@ const SlotGame = () => {
         });
       }
 
-      await new Promise((resolve) => setTimeout(resolve, 1000));
+      await sleep(1200);
 
       setIsCascading(true);
-      await new Promise((resolve) => setTimeout(resolve, 300));
-      
       setWinningPositions([]);
-      await new Promise((resolve) => setTimeout(resolve, 500));
+      
+      let gridToDisplay = nextGrid;
+      if(cascade.chestTransforms && cascade.chestTransforms.length > 0) {
+        gridToDisplay = getGridBeforeChests(nextGrid, cascade.chestTransforms);
+      }
+
+      setGrid(gridToDisplay);
+
+      await sleep(600);
       
       setIsCascading(false);
-      await new Promise((resolve) => setTimeout(resolve, 200));
+
+      if(cascade.chestTransforms && cascade.chestTransforms.length > 0) {
+        //const gridBeforeChestTransform = getGridBeforeChests(nextGrid, cascade.chestTransforms);
+        await handleChestSequence(cascade.chestTransforms, gridToDisplay);
+      }
     }
-
-    setGrid(finalGrid);
-
-    // Reset display mult after cascades
     if(!isBoughtBonusActive) {
       setCurrentDisplayMultiplier(1);
     }
 
-    await new Promise((resolve) => setTimeout(resolve, 400));
+    await sleep(300);
   };
 
   const triggerConfetti = () => {
@@ -428,6 +458,7 @@ const SlotGame = () => {
       setAccumulatedBonusMultiplier(1);
       setCurrentDisplayMultiplier(1);
       setIsFirstBoughtSpin(true);
+      setBonusTotalWin(0);
 
       toast.success('🎰 BONUS PURCHASED! Starting...', { duration: 3000 });
       audioManager.play('bigWin');
@@ -607,7 +638,7 @@ const SlotGame = () => {
         </div>
       )}
 
-      <div className="fixed top-24 right-8 z-40">
+      <div className="fixed bottom-8 left-8 z-40">
         <div
           className={`rounded-2xl p-6 shadow-2xl transition-all duration-300 ${
             isBoughtBonusActive
@@ -634,6 +665,21 @@ const SlotGame = () => {
           </div>
         </div>
       </div>
+
+      {isBoughtBonusActive && bonusTotalWin > 0 && (
+        <div className="fixed bottom-8 left-1/2 transform -translate-x-1/2 z-40">
+          <div className="bg-gradient-to-br from-green-500 to-emerald-600 border-4 border-green-300 rounded-2xl p-6 shadow-2xl">
+            <div className="text-center">
+              <div className="text-sm font-bold text-white uppercase tracking-wider mb-2">
+                Bonus Total Win
+              </div>
+              <div className="text-4xl font-black text-white drop-shadow-lg">
+                ${bonusTotalWin.toFixed(2)}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Rest of UI */}
       <div className="flex items-start justify-center gap-8 px-4 min-h-[calc(100vh-150px)]">
@@ -711,7 +757,7 @@ const SlotGame = () => {
           <SlotGrid
             grid={grid}
             winningPositions={winningPositions}
-            isRolling={isSpinning}
+            isRolling={isReelSpinning}
             isCascading={isCascading}
             chestTransformPositions={chestTransformPositions}
             chestPositions={chestPositions}

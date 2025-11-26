@@ -10,12 +10,12 @@ class AudioManager {
     };
 
     this.sounds.ambient.loop = true;
-    this.sounds.ambient.volume = 0.1;
+    this.sounds.ambient.volume = 0.08;
 
-    this.sounds.spinStart.volume = 0.15;
-    this.sounds.click.volume = 0.7;
-    this.sounds.bigWin.volume = 0.4;
-    this.sounds.clusterWin.volume = 0.25;
+    this.sounds.spinStart.volume = 0.06;
+    this.sounds.click.volume = 0.25;
+    this.sounds.bigWin.volume = 0.25;
+    this.sounds.clusterWin.volume = 0.12;
     this.sounds.bonus.volume = 0.3;
 
     this.enabled = true;

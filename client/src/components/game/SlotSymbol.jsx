@@ -53,7 +53,7 @@ const SlotSymbol = ({ symbol, isWinning, isRolling, isCascading }) => {
         />
       </AnimatePresence>
 
-      {isWinning && !isExploding && (
+      {isWinning && !isExploding && symbol.id !== 'CHEST' && symbol.id !== 'CHEST_OPENED' && (
         <>
           <motion.div
             className="absolute inset-0 bg-purple-500/30 rounded-lg"

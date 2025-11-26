@@ -14,6 +14,23 @@ export const SYMBOL_SPRITES = {
     WILD: '/sprites/wild.png',
     CHEST: '/sprites/chest.png',
     SCATTER: '/sprites/scatter.png',
+    CHEST_OPENED: '/sprites/chest.png',
+    
+    // Blurred variants
+    BLURRED_BLUE: '/sprites/blurred_blue_planet.png',
+    BLURRED_GREEN: '/sprites/blurred_green_planet.png',
+    BLURRED_PURPLE: '/sprites/blurred_purple_planet.png',
+    BLURRED_RED: '/sprites/blurred_red_planet.png',
+    BLURRED_RING: '/sprites/blurred_ring.png',
+    BLURRED_HOURGLASS: '/sprites/blurred_hourglass.png',
+    BLURRED_CROWN: '/sprites/blurred_crown.png',
+    BLURRED_MULTIPLIER_2X: '/sprites/blurred_multiplier-2x.png',
+    BLURRED_MULTIPLIER_5X: '/sprites/blurred_multiplier-5x.png',
+    BLURRED_MULTIPLIER_10X: '/sprites/blurred_multiplier-10x.png',
+    BLURRED_MULTIPLIER_1000X: '/sprites/blurred_multiplier-1000x.png',
+    BLURRED_WILD: '/sprites/blurred_wild.png',
+    BLURRED_CHEST: '/sprites/blurred_chest.png',
+    BLURRED_SCATTER: '/sprites/blurred_scatter.png'
 };
 
 // Bet presets
