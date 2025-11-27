@@ -218,17 +218,51 @@ function generateGrid(isBoughtBonus = false, guaranteeWin = false, strictNoChest
 
     // Force a guaranteed big win on first bought bonus spin
     if(guaranteeWin) {
-      const targetSymbol = SYMBOLS.CROWN;
-      const positions = [
-        [0,0],[0,1],[0,2],
-        [1,0],[1,1],[1,2],
-        [3,0],[3,1],[3,2],
-      ];
+      const targets = [SYMBOLS.CROWN, SYMBOLS.RING, SYMBOLS.HOURGLASS];
+      const targetSymbol = targets[Math.floor(Math.random() * targets.length)];
 
-      positions.forEach(([row, col]) => {
+      const targetSize = Math.floor(Math.random() * 3) + 8;
+
+      // Random walk algorithm
+      let currentPositions = [];
+      const startRow = Math.floor(Math.random() * (GRID_ROWS - 2)) + 1;
+      const startCol = Math.floor(Math.random() * (GRID_COLS - 2)) + 1;
+      currentPositions.push([startRow, startCol]);
+
+      const visited = new Set([`${startRow},${startCol}`]);
+
+      while(currentPositions.length < targetSize) {
+        // Pick random position from existing cluster to grow
+        const [r, c] = currentPositions[Math.floor(Math.random() * currentPositions.length)];
+
+        // Check neighbors
+        const moves = [[0, 1], [0, -1], [1, 0], [-1, 0]];
+        const validNeighbors = [];
+        
+        moves.forEach(([dr, dc]) => {
+          const nr = r + dr;
+          const nc = c + dc;
+
+          if(nr >= 0 && nr < GRID_ROWS && nc >= 0 && nc < GRID_COLS && !visited.has(`${nr},${nc}`)) {
+            validNeighbors.push([nr, nc]);
+          }
+        });
+
+        if(validNeighbors.length > 0) {
+          const [nextR, nextC] = validNeighbors[Math.floor(Math.random() *validNeighbors.length)];
+
+          visited.add(`${nextR},${nextC}`);
+          currentPositions.push([nextR, nextC]);
+        } else {
+          continue;
+        }
+      }
+
+      // Apply to grid
+      currentPositions.forEach(([row, col]) => {
         grid[row][col] = {
           ...targetSymbol,
-          uniqueId: `${targetSymbol.id}_${symbolIdCounter++}`,
+          uniqueId: `${targetSymbol.id}_guarantee_${symbolIdCounter++}`,
         };
       });
     }

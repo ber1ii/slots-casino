@@ -76,6 +76,22 @@
   }
 }
 
+@keyframes blurStart {
+  0% {
+    filter: blur(0px);
+    transform: translateY(0);
+  }
+  100% {
+    filter: blur(8px);
+    transform: translateY(100px);
+    opacity: 0.5;
+  }
+}
+
+.blur-motion {
+  animation: blurStart 0.2s ease-in forwards;
+}
+
 .animation-delay-100 {
   animation-delay: 0.1s;
 }

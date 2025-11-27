@@ -126,33 +126,6 @@ const SlotGame = () => {
     }
   }, [isAutoPlaying, isBoughtBonusActive, isSpinning, user?.freeSpins, user?.balance]);
 
-  useEffect(() => {
-    if (user?.freeSpins === 0 && isBoughtBonusActive) {
-      setIsBoughtBonusActive(false);
-      setAccumulatedBonusMultiplier(1);
-      setCurrentDisplayMultiplier(1);
-      
-      if(bonusTotalWin > 0) {
-        setTotalWinAmount(bonusTotalWin);
-        setShowTotalWin(true);
-        audioManager.play('bigWin');
-        triggerConfetti();
-
-        toast.success(`🎉 BONUS COMPLETE! Total: $${bonusTotalWin.toFixed(2)}`, {
-          duration: 5000,
-        });
-
-        setTimeout(() => {
-          setShowTotalWin(false);
-          setBonusTotalWin(0);
-        }, 5000);
-      } else {
-        toast.success('Bonus round completed!');
-        setBonusTotalWin(0);
-      }
-    }
-  }, [user?.freeSpins, isBoughtBonusActive, bonusTotalWin]);
-
   const initializeGrid = () => {
     const initialGrid = Array(GRID_ROWS)
       .fill(null)
@@ -195,25 +168,20 @@ const SlotGame = () => {
     audioManager.playSpinStart();
 
     try {
+      const minSpinTime = new Promise(resolve => setTimeout(resolve, 2000));
+
       // API call
-      const spinPromise = slotsAPI.spin(
+      const spinResult = await slotsAPI.spin(
         betAmount,
         isBoughtBonusActive,
         isFirstBoughtSpin,
         accumulatedBonusMultiplier
       );
 
-      // Wait for both the API AND the animation duration
-      const [res] = await Promise.all([
-        spinPromise,
-        new Promise(resolve => setTimeout(resolve, 3800)) 
-      ]);
-
-      setIsReelSpinning(false);
-      
+      const res = { data: spinResult.data };
       const initialChestTransforms = res.data.initialChestTransforms || [];
+
       let initialVisualGrid = res.data.initialGrid || res.data.finalGrid;
-      
       setGrid(initialVisualGrid);
 
       if(isFirstBoughtSpin) {
@@ -231,6 +199,9 @@ const SlotGame = () => {
         balance: res.data.newBalance,
         freeSpins: res.data.freeSpinsRemaining,
       });
+
+      await minSpinTime;
+      setIsReelSpinning(false);
 
       addTransaction({
         bet: betAmount,
@@ -271,6 +242,35 @@ const SlotGame = () => {
         toast.success(`💰 Spin Win: $${res.data.totalWin.toFixed(2)}`, {
           duration: 2000,
         });
+      }
+
+      if(isBoughtBonusActive && res.data.freeSpinsRemaining === 0) {
+        await new Promise(resolve => setTimeout(resolve, 1000));
+
+        setIsBoughtBonusActive(false);
+        setAccumulatedBonusMultiplier(1);
+        setCurrentDisplayMultiplier(1);
+
+        const finalTotalWin = bonusTotalWin + res.data.totalWin;
+
+        if(finalTotalWin > 0) {
+          setTotalWinAmount(finalTotalWin);
+          setShowTotalWin(true);
+          audioManager.play('bigWin');
+          triggerConfetti();
+
+          toast.success(`🎉 BONUS COMPLETE! Total: $${finalTotalWin.toFixed(2)}`, {
+            duration: 5000,
+          });
+
+          setTimeout(() => {
+            setShowTotalWin(false);
+            setBonusTotalWin(0);
+          }, 5000);
+        } else {
+          toast.success('Bonus round completed!');
+          setBonusTotalWin(0);
+        }
       }
 
       if (res.data.triggeredFreeSpins > 0) {
@@ -398,7 +398,6 @@ const SlotGame = () => {
       setIsCascading(false);
 
       if(cascade.chestTransforms && cascade.chestTransforms.length > 0) {
-        //const gridBeforeChestTransform = getGridBeforeChests(nextGrid, cascade.chestTransforms);
         await handleChestSequence(cascade.chestTransforms, gridToDisplay);
       }
     }
