@@ -1,9 +1,8 @@
 import { GRID_COLS, GRID_ROWS, SYMBOL_SPRITES } from '../../config/gameConfig';
 import SlotSymbol from './SlotSymbol';
 import { motion, AnimatePresence } from 'framer-motion';
-import { useState, useRef } from 'react';
+import { useEffect, useRef } from 'react';
 
-// Configuration for the "blur" filler
 const REEL_STRIP = ['RED_GEM', 'BLUE_GEM', 'WILD', 'CROWN', 'RING', 'SCATTER', 'GREEN_GEM', 'PURPLE_GEM', 'HOURGLASS'];
 
 const symbolVariants = {
@@ -26,11 +25,9 @@ const symbolVariants = {
 };
 
 const SpinningReel = ({ colIndex, initialSymbols, finalSymbols }) => {
-  // 1. Configuration
   const REPEAT_COUNT = 4; 
   
-  // 2. Build the visual strip
-  // Fallback to simple GEM if data is missing to prevent crash/white space
+  // Safe data access
   const startStrip = (initialSymbols && initialSymbols.length > 0) 
     ? initialSymbols.map(s => s ? s.id : REEL_STRIP[0]) 
     : Array(GRID_ROWS).fill(REEL_STRIP[0]);
@@ -45,20 +42,19 @@ const SpinningReel = ({ colIndex, initialSymbols, finalSymbols }) => {
   // DOM Order: [Top (Final), Middle, Bottom (Start)]
   const fullReel = [...endStrip, ...middleChunks, ...startStrip];
 
-  // 3. Height Math
   const ROW_HEIGHT_PERCENT = 100 / GRID_ROWS; 
   const totalStripHeightPercent = fullReel.length * ROW_HEIGHT_PERCENT;
   
-  // Start Position: Shift UP so the bottom (StartStrip) is in view.
-  // Formula: -(TotalHeight - ViewportHeight)
-  // Example: 2000% Height - 100% Viewport = 1900% Shift
-  const initialY = -1 * (totalStripHeightPercent - 100);
+  // We shift the strip UP so the BOTTOM chunk (StartStrip) is visible initially.
+  // Formula: (TotalItems - ViewportItems) / TotalItems
+  const shiftRatio = (fullReel.length - GRID_ROWS) / fullReel.length;
+  const initialY = -1 * shiftRatio * 100; 
 
   const baseDuration = 1.5; 
   const delay = colIndex * 0.15;
 
   return (
-    <div className="relative w-full h-full overflow-hidden bg-gray-900/50 border-r border-purple-900/30">
+    <div className="absolute inset-0 z-20 overflow-hidden pointer-events-none border-r border-purple-900/30 backdrop-blur-[1px]">
       <motion.div
         className="flex flex-col w-full"
         style={{ 
@@ -69,12 +65,11 @@ const SpinningReel = ({ colIndex, initialSymbols, finalSymbols }) => {
         animate={{ y: "0%" }}
         transition={{
           duration: baseDuration + delay,
-          ease: [0.35, 0, 0, 1], 
+          ease: [0.35, 0, 0, 1], // Custom bezier for "Heavy Start, Smooth Stop"
         }}
       >
         {fullReel.map((symbolId, i) => {
           const sprite = SYMBOL_SPRITES[symbolId] || SYMBOL_SPRITES['RED_GEM'];
-          // Blur middle symbols for speed effect
           const isFiller = i >= endStrip.length && i < (fullReel.length - startStrip.length);
           
           return (
@@ -86,7 +81,7 @@ const SpinningReel = ({ colIndex, initialSymbols, finalSymbols }) => {
                <img 
                  src={sprite} 
                  alt="slot-icon"
-                 className={`w-[85%] h-[85%] object-contain 
+                 className={`w-[85%] h-[85%] object-contain backface-hidden
                    ${isFiller ? 'blur-[2px] opacity-80 scale-90' : 'scale-100'}
                  `} 
                />
@@ -106,17 +101,15 @@ const SlotGrid = ({
   chestTransformPositions = [],
   chestPositions = [],
 }) => {
-  // Use Ref to hold the "Start" state of the spin.
-  // This persists across renders without triggering new ones.
   const lockedGridRef = useRef([]);
 
-  // Whenever we are NOT rolling, we keep the lockedGrid updated.
-  // When rolling STARTS, we stop updating this, effectively "snapshotting" the grid.
-  if (!isRolling && grid && grid.length > 0) {
-    lockedGridRef.current = grid;
-  }
+  // Lock the grid state right before spinning so we know what to "animate away from"
+  useEffect(() => {
+    if(!isRolling && grid && grid.length > 0) {
+      lockedGridRef.current = grid.map(row => row.map(cell => ({ ...cell })));
+    }
+  }, [isRolling, grid]);
 
-  // Helper to extract columns
   const getColumn = (targetGrid, colIndex) => {
     if(!targetGrid || targetGrid.length === 0) return [];
     return targetGrid.map(row => row[colIndex]);
@@ -141,65 +134,67 @@ const SlotGrid = ({
         <div className='relative w-full h-full p-6 grid gap-3'
           style={{ gridTemplateColumns: `repeat(${GRID_COLS}, 1fr)` }}>
             
-            {Array.from({ length: GRID_COLS }).map((_, colIndex) => (
-              <div key={`col-${colIndex}`} className="relative h-full flex flex-col bg-gray-800/20 rounded-lg overflow-hidden">
-                
-                {/* We remove the 'showSpinningReel' state toggle. 
-                   If isRolling is true, we render SpinningReel immediately.
-                   We pass lockedGridRef.current as the initial state.
-                */}
-                {isRolling ? (
-                  <SpinningReel
-                    key={`reel-${colIndex}-rolling`} 
-                    colIndex={colIndex}
-                    initialSymbols={getColumn(lockedGridRef.current, colIndex)}
-                    finalSymbols={getColumn(grid, colIndex)}
-                  />
-                ) : (
-                  <div className={`flex flex-col h-full`}>
-                    {Array.from({ length: GRID_ROWS }).map((_, rowIndex) => {
-                      const rowData = grid[rowIndex];
-                      const symbol = rowData ? rowData[colIndex] : null;
-                      
-                      if (!symbol) return <div key={rowIndex} className="h-[20%] w-full" />;
+            {Array.from({ length: GRID_COLS }).map((_, colIndex) => {
+              const colSymbols = getColumn(grid, colIndex);
 
-                      let animState = 'idle';
-                      if (isChestTransform(rowIndex, colIndex)) animState = 'chestTransform';
-                      else if (isChest(rowIndex, colIndex)) animState = 'chestHighlight';
+              return (
+                <div key={`col-${colIndex}`} className="relative h-full flex flex-col bg-gray-800/20 rounded-lg overflow-hidden">
+                  
+                  {isRolling ? (
+                      /* CASE 1: ROLLING - Show ONLY the spinning strip */
+                      <SpinningReel
+                        key={`reel-${colIndex}-rolling`} 
+                        colIndex={colIndex}
+                        initialSymbols={getColumn(lockedGridRef.current, colIndex)}
+                        finalSymbols={getColumn(grid, colIndex)}
+                      />
+                  ) : (
+                      /* CASE 2: STATIC - Show ONLY the static grid symbols */
+                      <div className={`flex flex-col h-full`}>
+                        {Array.from({ length: GRID_ROWS }).map((_, rowIndex) => {
+                          const symbol = colSymbols[rowIndex];
+                          
+                          if (!symbol) return <div key={rowIndex} className="h-[20%] w-full" />;
 
-                      const displaySymbol = symbol.id === 'CHEST_OPENED' ? { ...symbol, id: 'CHEST' } : symbol;
-                      const isTransformed = symbol.uniqueId && symbol.uniqueId.includes('transformed');
+                          let animState = 'idle';
+                          if (isChestTransform(rowIndex, colIndex)) animState = 'chestTransform';
+                          else if (isChest(rowIndex, colIndex)) animState = 'chestHighlight';
 
-                      return (
-                        <div key={rowIndex} className="relative w-full h-[20%] p-0 flex items-center justify-center">
-                          <AnimatePresence mode='popLayout'>
-                             <motion.div
-                                key={symbol.uniqueId || `${rowIndex}-${colIndex}`}
-                                className="w-full h-full flex items-center justify-center"
-                                variants={symbolVariants}
-                                initial={isTransformed 
-                                  ? { scale: 0, opacity: 0 } 
-                                  : (isCascading ? { y: -50, opacity: 0 } : "idle")
-                                } 
-                                animate={animState} 
-                                exit="exit"
-                                transition={{ type: 'spring', stiffness: 400, damping: 25 }}
-                              >
-                                <SlotSymbol 
-                                  symbol={displaySymbol}
-                                  isWinning={isWinning(rowIndex, colIndex)}
-                                  isRolling={false}
-                                  isCascading={isCascading}
-                                />
-                              </motion.div>
-                          </AnimatePresence>
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
-              </div>
-            ))}
+                          const displaySymbol = symbol.id === 'CHEST_OPENED' ? { ...symbol, id: 'CHEST' } : symbol;
+                          const isTransformed = symbol.uniqueId && symbol.uniqueId.includes('transformed');
+
+                          return (
+                            <div key={rowIndex} className="relative w-full h-[20%] p-0 flex items-center justify-center">
+                              <AnimatePresence mode='popLayout'>
+                                 <motion.div
+                                    key={symbol.uniqueId || `${rowIndex}-${colIndex}`}
+                                    className="w-full h-full flex items-center justify-center"
+                                    variants={symbolVariants}
+                                    initial={isTransformed 
+                                      ? { scale: 0, opacity: 0 } 
+                                      : (isCascading ? { y: -50, opacity: 0 } : "idle")
+                                    } 
+                                    animate={animState} 
+                                    exit="exit"
+                                    transition={{ type: 'spring', stiffness: 400, damping: 25 }}
+                                  >
+                                    <SlotSymbol 
+                                      symbol={displaySymbol}
+                                      isWinning={isWinning(rowIndex, colIndex)}
+                                      isRolling={false}
+                                      isCascading={isCascading}
+                                    />
+                                  </motion.div>
+                              </AnimatePresence>
+                            </div>
+                          );
+                        })}
+                      </div>
+                  )}
+                  
+                </div>
+              );
+            })}
         </div>
       </div>
     </div>
