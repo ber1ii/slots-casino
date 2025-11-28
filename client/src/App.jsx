@@ -12,6 +12,8 @@ import Register from "./pages/Register";
 import Dashboard from "./pages/Dashboard";
 import Game from "./pages/Game";
 import Profile from "./pages/Profile";
+import Statistics from "./pages/Statistics";
+import Leaderboard from "./pages/Leaderboard";
 import "./App.css";
 
 function App() {
@@ -68,6 +70,22 @@ function App() {
                   element={
                     <ProtectedRoute>
                       <Profile />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/statistics"
+                  element={
+                    <ProtectedRoute>
+                      <Statistics />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/leaderboard"
+                  element={
+                    <ProtectedRoute>
+                      <Leaderboard />
                     </ProtectedRoute>
                   }
                 />

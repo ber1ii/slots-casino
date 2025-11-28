@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import PasswordStrengthMeter from '../components/PasswordStrengthMeter';
 
 const Register = () => {
     const [username, setUsername] = useState('');
@@ -76,6 +77,7 @@ const Register = () => {
                             placeholder="••••••"
                             className="input-field"
                         />
+                        <PasswordStrengthMeter password={password} />
                     </div>
 
                     <button type="submit" disabled={loading} className="btn-primary">

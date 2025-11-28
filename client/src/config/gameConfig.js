@@ -17,8 +17,18 @@ export const SYMBOL_SPRITES = {
   CHEST_OPENED: "/sprites/chest.png",
 };
 
-export const PROFILE_SPRITE = {
+export const PROFILE_SPRITES = {
   DANTE: "/sprites/dante.png",
+  DEAN: "/sprites/dean.png",
+  DEXTER: "/sprites/dexter.png",
+  HEISENBERG: "/sprites/heisenberg.png",
+  NICK: "/sprites/nick.png",
+  VERGIL: "/sprites/vergil.png",
+  GOJO: "/sprites/gojo.png",
+  GUTS: "/sprites/guts.png",
+  KENJAKU: "/sprites/kenjaku.png",
+  TONY: "/sprites/soprano.png",
+  THORFINN: "/sprites/thorfinn.png",
 };
 
 // Bet presets

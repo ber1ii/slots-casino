@@ -826,6 +826,28 @@ router.post("/spin", authMiddleware, async (req, res) => {
       user.freeSpins += result.triggeredFreeSpins;
     }
 
+    user.totalSpins = (user.totalSpins || 0) + 1;
+    user.lastSpinAt = new Date();
+
+    if(!isFreeSpin) {
+      user.totalWagered = (user.totalWagered || 0) + betAmount;
+    }
+
+    if(result.totalWin > 0) {
+      user.totalWins = (user.totalWins || 0) + result.totalWin;
+
+      user.lastWin = result.totalWin;
+
+      if(result.totalWin > (user.highestWin || 0)) {
+        user.highestWin = result.totalWin;
+      }
+
+      const currentSpinMultiplier = result.totalWin / betAmount;
+      if(currentSpinMultiplier > (user.biggestMultiplier || 0)) {
+        user.biggestMultiplier = currentSpinMultiplier;
+      }
+    }
+
     await user.save();
 
     res.json({
@@ -858,6 +880,7 @@ router.post("/buy-bonus", authMiddleware, async (req, res) => {
     }
 
     user.balance -= cost;
+    user.totalWagered = (user.totalWagered || 0) + cost;
     user.freeSpins += FREE_SPINS_AMOUNT;
     await user.save();
 
