@@ -1,122 +1,122 @@
-const express = require('express');
-const User = require('../models/User');
-const authMiddleware = require('../middleware/auth');
+const express = require("express");
+const User = require("../models/User");
+const authMiddleware = require("../middleware/auth");
 
 const router = express.Router();
 
 // Symbol definitions with weights
 const SYMBOLS = {
-    // Tier 1 - Common
-    BLUE_GEM: {
-        id: 'BLUE_GEM',
-        symbol: '🔵',
-        weight: 30,
-        tier: 1,
-        name: 'Blue Gem',
-    },
-    GREEN_GEM: {
-        id: 'GREEN_GEM',
-        symbol: '🟢',
-        weight: 28,
-        tier: 1,
-        name: 'Green Gem'
-    },
-    PURPLE_GEM: {
-        id: 'PURPLE_GEM',
-        symbol: '🟣',
-        weight: 26,
-        tier: 1,
-        name: 'Purple Gem'
-    },
-    RED_GEM: {
-        id: 'RED_GEM',
-        symbol: '🔴',
-        weight: 24,
-        tier: 1,
-        name: 'Red Gem',
-    },
+  // Tier 1 - Common
+  BLUE_GEM: {
+    id: "BLUE_GEM",
+    symbol: "🔵",
+    weight: 30,
+    tier: 1,
+    name: "Blue Gem",
+  },
+  GREEN_GEM: {
+    id: "GREEN_GEM",
+    symbol: "🟢",
+    weight: 28,
+    tier: 1,
+    name: "Green Gem",
+  },
+  PURPLE_GEM: {
+    id: "PURPLE_GEM",
+    symbol: "🟣",
+    weight: 26,
+    tier: 1,
+    name: "Purple Gem",
+  },
+  RED_GEM: {
+    id: "RED_GEM",
+    symbol: "🔴",
+    weight: 24,
+    tier: 1,
+    name: "Red Gem",
+  },
 
-    // Tier 2 - Uncommon
-    RING: {
-        id: 'RING',
-        symbol: '💍',
-        weight: 12,
-        tier: 2, 
-        name: 'Ring',
-    },
-    HOURGLASS: {
-        id: 'HOURGLASS',
-        symbol: '⏳',
-        weight: 10,
-        tier: 2,
-        name: 'Hourglass',
-    },
-    CROWN: {
-        id: 'CROWN',
-        symbol: '👑',
-        weight: 9,
-        tier: 2,
-        name: 'Crown',
-    },
+  // Tier 2 - Uncommon
+  RING: {
+    id: "RING",
+    symbol: "💍",
+    weight: 12,
+    tier: 2,
+    name: "Ring",
+  },
+  HOURGLASS: {
+    id: "HOURGLASS",
+    symbol: "⏳",
+    weight: 10,
+    tier: 2,
+    name: "Hourglass",
+  },
+  CROWN: {
+    id: "CROWN",
+    symbol: "👑",
+    weight: 9,
+    tier: 2,
+    name: "Crown",
+  },
 
-    // Multipliers - Rare
-    MULTIPLIER_2X: {
-        id: 'MULTIPLIER_2X',
-        symbol: '⚡',
-        weight: 1,
-        multiplier: 2,
-        name: '2x Multiplier',
-    },
-    MULTIPLIER_5X: {
-        id: 'MULTIPLIER_5X',
-        symbol: '🔥',
-        weight: 0.5,
-        multiplier: 5,
-        name: '5x Multiplier'
-    },
-    MULTIPLIER_10X: {
-        id: 'MULTIPLIER_10X',
-        symbol: '💎',
-        weight: 0.3,
-        multiplier: 10,
-        name: '10x Multiplier',
-    },
-    MULTIPLIER_1000X: {
-        id: 'MULTIPLIER_1000X',
-        symbol: '💫',
-        weight: 0.025,
-        multiplier: 1000,
-        name: '1000x Multiplier',
-    },
+  // Multipliers - Rare
+  MULTIPLIER_2X: {
+    id: "MULTIPLIER_2X",
+    symbol: "⚡",
+    weight: 1,
+    multiplier: 2,
+    name: "2x Multiplier",
+  },
+  MULTIPLIER_5X: {
+    id: "MULTIPLIER_5X",
+    symbol: "🔥",
+    weight: 0.5,
+    multiplier: 5,
+    name: "5x Multiplier",
+  },
+  MULTIPLIER_10X: {
+    id: "MULTIPLIER_10X",
+    symbol: "💎",
+    weight: 0.3,
+    multiplier: 10,
+    name: "10x Multiplier",
+  },
+  MULTIPLIER_1000X: {
+    id: "MULTIPLIER_1000X",
+    symbol: "💫",
+    weight: 0.025,
+    multiplier: 1000,
+    name: "1000x Multiplier",
+  },
 
-    // Wild - uncommon
-    WILD: {
-      id: 'WILD',
-      symbol: '🌟',
-      weight: 5.5,
-      name: 'Wild',
-    },
+  // Wild - uncommon
+  WILD: {
+    id: "WILD",
+    symbol: "🌟",
+    weight: 5.5,
+    name: "Wild",
+  },
 
-    CHEST: {
-      id: 'CHEST',
-      symbol: '🎁',
-      weight: 0.3,
-      name: 'Chest'
-    },
+  CHEST: {
+    id: "CHEST",
+    symbol: "🎁",
+    weight: 0.3,
+    name: "Chest",
+  },
 
-    // Scatter - Epic
-    SCATTER: {
-        id: 'SCATTER',
-        symbol: '⭐',
-        weight: 0.5,
-        name: 'Scatter',
-    },
-    CHEST_OPENED: {
-      id: 'CHEST_OPENED',
-      symbol: '📦',
-      weight: 0,
-      name: 'Opened Chest',
-    }
+  // Scatter - Epic
+  SCATTER: {
+    id: "SCATTER",
+    symbol: "⭐",
+    weight: 0.5,
+    name: "Scatter",
+  },
+  CHEST_OPENED: {
+    id: "CHEST_OPENED",
+    symbol: "📦",
+    weight: 0,
+    name: "Opened Chest",
+  },
 };
 
 // Payout table
@@ -158,131 +158,148 @@ let symbolIdCounter = 0;
 
 // Generate weighted symbol randomly
 function getRandomSymbol(isBoughtBonus = false, excludeChest = false) {
-    let symbolArray = Object.values(SYMBOLS);
+  let symbolArray = Object.values(SYMBOLS);
 
-    if(excludeChest) {
-      symbolArray = symbolArray.filter(s => s.id !== 'CHEST');
+  if (excludeChest) {
+    symbolArray = symbolArray.filter((s) => s.id !== "CHEST");
+  }
+
+  const weights = symbolArray.map((s) => {
+    if (!isBoughtBonus) return s.weight;
+
+    // Boost scatters, mult, tier 2 and wilds during bonus
+    if (s.id === "SCATTER") return s.weight * 3.5;
+    if (s.multiplier !== undefined) return s.weight * 5;
+    if (s.tier === 2) return s.weight * 1.75;
+    if (s.id === "WILD") return s.weight * 1.4;
+    if (s.id === "CHEST") return s.weight * 1.75;
+
+    return s.weight * 0.5; // Slightly reduces tier 1
+  });
+
+  const totalWeight = weights.reduce((sum, w) => sum + w, 0);
+  let random = Math.random() * totalWeight;
+
+  for (let i = 0; i < symbolArray.length; i++) {
+    random -= weights[i];
+
+    if (random <= 0) {
+      return {
+        ...symbolArray[i],
+        uniqueId: `${symbolArray[i].id}_${symbolIdCounter++}`,
+      };
     }
+  }
 
-    const weights = symbolArray.map((s) => {
-      if(!isBoughtBonus) return s.weight;
-
-      // Boost scatters, mult, tier 2 and wilds during bonus
-      if(s.id === 'SCATTER') return s.weight * 3.5;
-      if(s.multiplier !== undefined) return s.weight * 5;
-      if(s.tier === 2) return s.weight * 1.75;
-      if(s.id === 'WILD') return s.weight * 1.4;
-      if(s.id === 'CHEST') return s.weight * 1.75;
-
-      return s.weight * 0.5; // Slightly reduces tier 1
-    });
-
-    const totalWeight = weights.reduce((sum, w) => sum + w, 0);
-    let random = Math.random() * totalWeight;
-
-    for(let i = 0; i < symbolArray.length; i++) {
-      random -= weights[i];
-
-      if(random <= 0) {
-        return {
-          ...symbolArray[i],
-          uniqueId: `${symbolArray[i].id}_${symbolIdCounter++}`,
-        };
-      }
-    }
-
-    return {
-      ...symbolArray[0],
-      uniqueId: `${symbolArray[0].id}_${symbolIdCounter++}`,
-    };
+  return {
+    ...symbolArray[0],
+    uniqueId: `${symbolArray[0].id}_${symbolIdCounter++}`,
+  };
 }
 
 // Generate 6x5 grid
-function generateGrid(isBoughtBonus = false, guaranteeWin = false, strictNoChest = false) {
-    const grid = [];
-    let hasChest = strictNoChest;
+function generateGrid(
+  isBoughtBonus = false,
+  guaranteeWin = false,
+  strictNoChest = false
+) {
+  const grid = [];
+  let hasChest = strictNoChest;
 
-    for(let row = 0; row < GRID_ROWS; row++) {
-        const rowData = [];
-        for(let col = 0; col < GRID_COLS; col++) {
-          const symbol = getRandomSymbol(isBoughtBonus, hasChest);
-          
-          if(symbol.id === 'CHEST') {
-            hasChest = true;
-          }
-          rowData.push(symbol);
-        }
+  for (let row = 0; row < GRID_ROWS; row++) {
+    const rowData = [];
+    for (let col = 0; col < GRID_COLS; col++) {
+      const symbol = getRandomSymbol(isBoughtBonus, hasChest);
 
-        grid.push(rowData);
-    }
-
-    // Force a guaranteed big win on first bought bonus spin
-    if(guaranteeWin) {
-      const targets = [SYMBOLS.CROWN, SYMBOLS.RING, SYMBOLS.HOURGLASS];
-      const targetSymbol = targets[Math.floor(Math.random() * targets.length)];
-
-      const targetSize = Math.floor(Math.random() * 3) + 8;
-
-      // Random walk algorithm
-      let currentPositions = [];
-      const startRow = Math.floor(Math.random() * (GRID_ROWS - 2)) + 1;
-      const startCol = Math.floor(Math.random() * (GRID_COLS - 2)) + 1;
-      currentPositions.push([startRow, startCol]);
-
-      const visited = new Set([`${startRow},${startCol}`]);
-
-      while(currentPositions.length < targetSize) {
-        // Pick random position from existing cluster to grow
-        const [r, c] = currentPositions[Math.floor(Math.random() * currentPositions.length)];
-
-        // Check neighbors
-        const moves = [[0, 1], [0, -1], [1, 0], [-1, 0]];
-        const validNeighbors = [];
-        
-        moves.forEach(([dr, dc]) => {
-          const nr = r + dr;
-          const nc = c + dc;
-
-          if(nr >= 0 && nr < GRID_ROWS && nc >= 0 && nc < GRID_COLS && !visited.has(`${nr},${nc}`)) {
-            validNeighbors.push([nr, nc]);
-          }
-        });
-
-        if(validNeighbors.length > 0) {
-          const [nextR, nextC] = validNeighbors[Math.floor(Math.random() *validNeighbors.length)];
-
-          visited.add(`${nextR},${nextC}`);
-          currentPositions.push([nextR, nextC]);
-        } else {
-          continue;
-        }
+      if (symbol.id === "CHEST") {
+        hasChest = true;
       }
-
-      // Apply to grid
-      currentPositions.forEach(([row, col]) => {
-        grid[row][col] = {
-          ...targetSymbol,
-          uniqueId: `${targetSymbol.id}_guarantee_${symbolIdCounter++}`,
-        };
-      });
+      rowData.push(symbol);
     }
 
-    return grid;
+    grid.push(rowData);
+  }
+
+  // Force a guaranteed big win on first bought bonus spin
+  if (guaranteeWin) {
+    const targets = [SYMBOLS.CROWN, SYMBOLS.RING, SYMBOLS.HOURGLASS];
+    const targetSymbol = targets[Math.floor(Math.random() * targets.length)];
+
+    const targetSize = Math.floor(Math.random() * 3) + 8;
+
+    // Random walk algorithm
+    let currentPositions = [];
+    const startRow = Math.floor(Math.random() * (GRID_ROWS - 2)) + 1;
+    const startCol = Math.floor(Math.random() * (GRID_COLS - 2)) + 1;
+    currentPositions.push([startRow, startCol]);
+
+    const visited = new Set([`${startRow},${startCol}`]);
+
+    while (currentPositions.length < targetSize) {
+      // Pick random position from existing cluster to grow
+      const [r, c] =
+        currentPositions[Math.floor(Math.random() * currentPositions.length)];
+
+      // Check neighbors
+      const moves = [
+        [0, 1],
+        [0, -1],
+        [1, 0],
+        [-1, 0],
+      ];
+      const validNeighbors = [];
+
+      moves.forEach(([dr, dc]) => {
+        const nr = r + dr;
+        const nc = c + dc;
+
+        if (
+          nr >= 0 &&
+          nr < GRID_ROWS &&
+          nc >= 0 &&
+          nc < GRID_COLS &&
+          !visited.has(`${nr},${nc}`)
+        ) {
+          validNeighbors.push([nr, nc]);
+        }
+      });
+
+      if (validNeighbors.length > 0) {
+        const [nextR, nextC] =
+          validNeighbors[Math.floor(Math.random() * validNeighbors.length)];
+
+        visited.add(`${nextR},${nextC}`);
+        currentPositions.push([nextR, nextC]);
+      } else {
+        continue;
+      }
+    }
+
+    // Apply to grid
+    currentPositions.forEach(([row, col]) => {
+      grid[row][col] = {
+        ...targetSymbol,
+        uniqueId: `${targetSymbol.id}_guarantee_${symbolIdCounter++}`,
+      };
+    });
+  }
+
+  return grid;
 }
 
 // Process CHEST Transformations
 function processChest(grid) {
   const chestPositions = [];
 
-  for(let row = 0; row < GRID_ROWS; row++) {
-    for(let col = 0; col < GRID_COLS; col++) {
-      if(grid[row][col].id === 'CHEST') {
+  for (let row = 0; row < GRID_ROWS; row++) {
+    for (let col = 0; col < GRID_COLS; col++) {
+      if (grid[row][col].id === "CHEST") {
         chestPositions.push([row, col]);
       }
     }
   }
 
-  if(chestPositions.length === 0) return { grid, chestTransforms: [] };
+  if (chestPositions.length === 0) return { grid, chestTransforms: [] };
 
   const chestRow = chestPositions[0][0];
   const chestCol = chestPositions[0][1];
@@ -293,17 +310,22 @@ function processChest(grid) {
     const tier1Positions = [];
     const tier2Positions = [];
 
-    for(let row = 0; row < GRID_ROWS; row++) {
-      for(let col = 0; col < GRID_COLS; col++) {
-        if(row === chestRow && col === chestCol) continue;
+    for (let row = 0; row < GRID_ROWS; row++) {
+      for (let col = 0; col < GRID_COLS; col++) {
+        if (row === chestRow && col === chestCol) continue;
 
         const symbol = grid[row][col];
 
-        if(symbol.id === 'WILD' || symbol.id === 'SCATTER' || symbol.multiplier) continue;
+        if (
+          symbol.id === "WILD" ||
+          symbol.id === "SCATTER" ||
+          symbol.multiplier
+        )
+          continue;
 
-        if(symbol.tier === 1) {
+        if (symbol.tier === 1) {
           tier1Positions.push([row, col]);
-        } else if(symbol.tier === 2) {
+        } else if (symbol.tier === 2) {
           tier2Positions.push([row, col]);
         }
       }
@@ -311,9 +333,9 @@ function processChest(grid) {
 
     // Pick 3 symbols (Prefer tier 1 symbols)
     let targetsToTransform = [];
-    if(tier1Positions.length >= 3) {
+    if (tier1Positions.length >= 3) {
       // Randomly pick 3 tier 1 symbols
-      for(let i = 0; i < 3; i++) {
+      for (let i = 0; i < 3; i++) {
         const randomIndex = Math.floor(Math.random() * tier1Positions.length);
         targetsToTransform.push(tier1Positions.splice(randomIndex, 1)[0]);
       }
@@ -322,13 +344,13 @@ function processChest(grid) {
       targetsToTransform = [...tier1Positions];
       const needed = 3 - targetsToTransform.length;
 
-      for(let i =0; i < needed && tier2Positions.length > 0; i++) {
+      for (let i = 0; i < needed && tier2Positions.length > 0; i++) {
         const randomIndex = Math.floor(Math.random() * tier2Positions.length);
         targetsToTransform.push(tier2Positions.splice(randomIndex, 1)[0]);
       }
     }
 
-    if(targetsToTransform.length === 0) return;
+    if (targetsToTransform.length === 0) return;
 
     // Choose 4 cases
     const cases = [
@@ -342,9 +364,9 @@ function processChest(grid) {
     let random = Math.random() * totalProb;
 
     let chosenCase = cases[0];
-    for(const c of cases) {
+    for (const c of cases) {
       random -= c.probability;
-      if(random <= 0) {
+      if (random <= 0) {
         chosenCase = c;
         break;
       }
@@ -359,18 +381,18 @@ function processChest(grid) {
 
     const newSymbolsKeys = [];
 
-    for(let i = 0; i < chosenCase.scatters; i++) {
-      newSymbolsKeys.push('SCATTER');
+    for (let i = 0; i < chosenCase.scatters; i++) {
+      newSymbolsKeys.push("SCATTER");
     }
-    for(let i = 0; i < chosenCase.wilds; i++) {
-      newSymbolsKeys.push('WILD');
+    for (let i = 0; i < chosenCase.wilds; i++) {
+      newSymbolsKeys.push("WILD");
     }
 
     const resultingSymbols = [];
 
     // Apply transformations
     targetsToTransform.forEach(([row, col], idx) => {
-      if(newSymbolsKeys[idx]) {
+      if (newSymbolsKeys[idx]) {
         const newSym = {
           ...SYMBOLS[newSymbolsKeys[idx]],
           uniqueId: `${newSymbolsKeys[idx]}_transformed_${symbolIdCounter++}`,
@@ -392,7 +414,7 @@ function processChest(grid) {
 
   grid[chestRow][chestCol] = {
     ...SYMBOLS.CHEST_OPENED,
-    uniqueId: grid[chestRow][chestCol].uniqueId
+    uniqueId: grid[chestRow][chestCol].uniqueId,
   };
 
   return { grid, chestTransforms };
@@ -415,7 +437,7 @@ function findClusters(grid) {
           continue;
         }
 
-        if(symbol.id === 'CHEST_OPENED') {
+        if (symbol.id === "CHEST_OPENED") {
           visited[row][col] = true;
           clusters.push({
             symbol: symbol,
@@ -427,7 +449,12 @@ function findClusters(grid) {
         }
 
         // Skip multipliers and scatters for cluster detection
-        if (symbol.multiplier !== undefined || symbol.id === 'SCATTER' || symbol.id === 'WILD' || symbol.id === 'CHEST') {
+        if (
+          symbol.multiplier !== undefined ||
+          symbol.id === "SCATTER" ||
+          symbol.id === "WILD" ||
+          symbol.id === "CHEST"
+        ) {
           visited[row][col] = true;
           continue;
         }
@@ -484,18 +511,15 @@ function bfs(grid, startRow, startCol, symbolId, visited) {
       ) {
         const neighborSymbol = grid[newRow][newCol];
 
-        if(!neighborSymbol) continue;
+        if (!neighborSymbol) continue;
 
         // Match if same symbol OR if neighbor is WILD
-        if (
-          neighborSymbol.id === symbolId ||
-          neighborSymbol.id === 'WILD'
-        ) {
-          visited[newRow][newCol] =true;
+        if (neighborSymbol.id === symbolId || neighborSymbol.id === "WILD") {
+          visited[newRow][newCol] = true;
           queue.push([newRow, newCol]);
 
           // Track highest tier in cluster
-          if(neighborSymbol.tier && neighborSymbol.tier > maxTier) {
+          if (neighborSymbol.tier && neighborSymbol.tier > maxTier) {
             maxTier = neighborSymbol.tier;
           }
         }
@@ -508,12 +532,12 @@ function bfs(grid, startRow, startCol, symbolId, visited) {
 
 // Calculate payout for clusters
 function calculateClusterPayout(cluster, betAmount) {
-  if(cluster.symbol.id === 'CHEST_OPENED') return 0;    
-  
+  if (cluster.symbol.id === "CHEST_OPENED") return 0;
+
   const size = cluster.size;
   const tier = cluster.tier || cluster.symbol.tier;
 
-  if(!PAYOUTS[size]) return 0;
+  if (!PAYOUTS[size]) return 0;
 
   const multiplier = tier === 1 ? PAYOUTS[size].tier1 : PAYOUTS[size].tier2;
 
@@ -522,38 +546,43 @@ function calculateClusterPayout(cluster, betAmount) {
 
 // Count scatters on grid
 function countScatters(grid) {
-    let count = 0;
+  let count = 0;
 
-    for(let row = 0; row < GRID_ROWS; row++) {
-        for(let col = 0; col < GRID_COLS; col++) {
-            if(grid[row][col].id === 'SCATTER') {
-                count++;
-            }
-        }
+  for (let row = 0; row < GRID_ROWS; row++) {
+    for (let col = 0; col < GRID_COLS; col++) {
+      if (grid[row][col].id === "SCATTER") {
+        count++;
+      }
     }
+  }
 
-    return count;
+  return count;
 }
 
 // Get all multipliers on grid
 function getMultipliers(grid) {
-    const multipliers = [];
+  const multipliers = [];
 
-    for(let row = 0; row < GRID_ROWS; row++) {
-        for(let col = 0; col < GRID_COLS; col++) {
-            const symbol = grid[row][col];
+  for (let row = 0; row < GRID_ROWS; row++) {
+    for (let col = 0; col < GRID_COLS; col++) {
+      const symbol = grid[row][col];
 
-            if(symbol.multiplier !== undefined) {
-                multipliers.push(symbol.multiplier);
-            }
-        }
+      if (symbol.multiplier !== undefined) {
+        multipliers.push(symbol.multiplier);
+      }
     }
+  }
 
-    return multipliers;
+  return multipliers;
 }
 
 // Remove winning symbols and drop new ones
-function cascadeGrid(grid, clusters, isBoughtBonus = false, strictNoChest = false) {
+function cascadeGrid(
+  grid,
+  clusters,
+  isBoughtBonus = false,
+  strictNoChest = false
+) {
   const toRemove = new Set();
 
   clusters.forEach((cluster) => {
@@ -563,12 +592,12 @@ function cascadeGrid(grid, clusters, isBoughtBonus = false, strictNoChest = fals
   });
 
   let hasChestOnGrid = strictNoChest;
-  if(!hasChestOnGrid) {
-    for(let row = 0; row < GRID_ROWS; row++) {
-      for(let col = 0; col < GRID_COLS; col++) {
-        if(!toRemove.has(`${row},${col}`)) {
+  if (!hasChestOnGrid) {
+    for (let row = 0; row < GRID_ROWS; row++) {
+      for (let col = 0; col < GRID_COLS; col++) {
+        if (!toRemove.has(`${row},${col}`)) {
           // Check for unopened chests
-          if(grid[row][col] && grid[row][col].id === 'CHEST') {
+          if (grid[row][col] && grid[row][col].id === "CHEST") {
             hasChestOnGrid = true;
           }
         }
@@ -595,7 +624,7 @@ function cascadeGrid(grid, clusters, isBoughtBonus = false, strictNoChest = fals
     for (let i = 0; i < newSymbolsNeeded; i++) {
       const newSymbol = getRandomSymbol(isBoughtBonus, hasChestOnGrid);
 
-      if(newSymbol.id === 'CHEST') {
+      if (newSymbol.id === "CHEST") {
         hasChestOnGrid = true;
       }
 
@@ -620,20 +649,26 @@ function cascadeGrid(grid, clusters, isBoughtBonus = false, strictNoChest = fals
   return newGrid;
 }
 // Process complete spin with cascading
-function processSpin(betAmount, isBoughtBonus = false, guaranteeWin = false, bonusMultiplier = 1) {
+function processSpin(
+  betAmount,
+  isBoughtBonus = false,
+  guaranteeWin = false,
+  bonusMultiplier = 1
+) {
   let chestHasAppearedInSpin = false;
-  
+
   let grid = generateGrid(isBoughtBonus, guaranteeWin, false);
 
-  const initialGrid = grid.map(row => row.map(cell => ({ ...cell })));
+  const initialGrid = grid.map((row) => row.map((cell) => ({ ...cell })));
 
-  for(let r = 0; r < GRID_ROWS; r++) {
-    for(let c = 0; c < GRID_COLS; c++) {
-      if(grid[r][c].id === 'CHEST') chestHasAppearedInSpin = true;
+  for (let r = 0; r < GRID_ROWS; r++) {
+    for (let c = 0; c < GRID_COLS; c++) {
+      if (grid[r][c].id === "CHEST") chestHasAppearedInSpin = true;
     }
   }
 
-  const { grid: processGrid, chestTransforms: initialChestTransforms } = processChest(grid);
+  const { grid: processGrid, chestTransforms: initialChestTransforms } =
+    processChest(grid);
   grid = processGrid;
 
   let totalWin = 0;
@@ -666,48 +701,51 @@ function processSpin(betAmount, isBoughtBonus = false, guaranteeWin = false, bon
     cascadeWin *= progressiveMult;
 
     const multipliers = getMultipliers(grid);
-    
+
     // During BONUS, ADD multipliers to accumulator
-    if(isBoughtBonus && multipliers.length > 0) {
+    if (isBoughtBonus && multipliers.length > 0) {
       const sumOfMultipliers = multipliers.reduce((sum, m) => sum + m, 0);
       currentBonusMultiplier += sumOfMultipliers;
     }
 
     // Apply bonus mult to each cascade win
-    if(isBoughtBonus) {
+    if (isBoughtBonus) {
       cascadeWin *= currentBonusMultiplier;
-    } else if(multipliers.length > 0) {
+    } else if (multipliers.length > 0) {
       // Normal mode: multiply cascade win
       const cascadeMultiplier = multipliers.reduce((acc, m) => acc * m, 1);
       cascadeWin *= cascadeMultiplier;
     }
 
-    const currentStepGrid = grid.map(row => [...row]);
+    const currentStepGrid = grid.map((row) => [...row]);
 
     totalWin += cascadeWin;
 
     grid = cascadeGrid(grid, clusters, isBoughtBonus, chestHasAppearedInSpin);
 
-    if(!chestHasAppearedInSpin) {
-      for(let r = 0; r < GRID_ROWS; r++) {
-        for(let c = 0; c < GRID_COLS; c++) {
-          if(grid[r][c].id === 'CHEST') {
+    if (!chestHasAppearedInSpin) {
+      for (let r = 0; r < GRID_ROWS; r++) {
+        for (let c = 0; c < GRID_COLS; c++) {
+          if (grid[r][c].id === "CHEST") {
             chestHasAppearedInSpin = true;
           }
         }
       }
     }
 
-    const { grid: gridAfterChestCheck, chestTransforms: cascadeChestTransforms } = processChest(grid);
+    const {
+      grid: gridAfterChestCheck,
+      chestTransforms: cascadeChestTransforms,
+    } = processChest(grid);
 
-    if(cascadeChestTransforms.length > 0) {
+    if (cascadeChestTransforms.length > 0) {
       grid = gridAfterChestCheck;
     }
 
     cascades.push({
       cascadeNumber: cascadeCount + 1,
-      grid: currentStepGrid, 
-      nextGridState: grid, 
+      grid: currentStepGrid,
+      nextGridState: grid,
       clusters: clusters.map((c) => ({
         symbol: c.symbol.symbol,
         size: c.size,
@@ -717,7 +755,7 @@ function processSpin(betAmount, isBoughtBonus = false, guaranteeWin = false, bon
       multipliers,
       progressiveMult,
       bonusMultiplier: isBoughtBonus ? currentBonusMultiplier : null,
-      chestTransforms: cascadeChestTransforms, 
+      chestTransforms: cascadeChestTransforms,
     });
 
     cascadeCount++;
@@ -739,97 +777,101 @@ function processSpin(betAmount, isBoughtBonus = false, guaranteeWin = false, bon
 }
 
 // Spin endpoint
-router.post('/spin', authMiddleware, async (req, res) => {
-    try {
-        const { betAmount, isBoughtBonusSpin, isFirstBoughtSpin, bonusMultiplier } = req.body;
+router.post("/spin", authMiddleware, async (req, res) => {
+  try {
+    const { betAmount, isBoughtBonusSpin, isFirstBoughtSpin, bonusMultiplier } =
+      req.body;
 
-        if(!betAmount || betAmount <= 0) {
-            return res.status(400).json({ error: 'Invalid bet amount' });
-        }
-
-        if(betAmount < 0.2 || betAmount > 100) {
-            return res
-                .status(400)
-                .json({ error: 'Bet must be between 0.2 and 100' });
-        }
-
-        const user = await User.findById(req.userId);
-
-        // Check if using free spin
-        const isFreeSpin = user.freeSpins > 0;
-
-        if(!isFreeSpin && user.balance < betAmount) {
-            return res.status(400).json({ error: 'Insufficient balance' });
-        }
-
-        // Deduct bet or free spin
-        if(isFreeSpin) {
-            user.freeSpins -= 1;
-        } else {
-            user.balance -= betAmount;
-        }
-
-        const isBoughtBonus = isBoughtBonusSpin === true;
-        const guaranteeWin = isFirstBoughtSpin === true;
-        const currentBonusMultiplier = bonusMultiplier || 1;
-
-        // Process spin
-        const result = processSpin(betAmount, isBoughtBonus, guaranteeWin, currentBonusMultiplier);
-
-        // Add winnings
-        user.balance += result.totalWin;
-
-        // Add free spins if triggered
-        if(result.triggeredFreeSpins > 0) {
-            user.freeSpins += result.triggeredFreeSpins;
-        }
-
-        await user.save();
-
-        res.json({
-            ...result,
-            newBalance: user.balance,
-            freeSpinsRemaining: user.freeSpins,
-            wasFreeSpin: isFreeSpin,
-        });
-    } catch(error) {
-        res.status(500).json({ error: error.message });
+    if (!betAmount || betAmount <= 0) {
+      return res.status(400).json({ error: "Invalid bet amount" });
     }
+
+    if (betAmount < 0.2 || betAmount > 100) {
+      return res.status(400).json({ error: "Bet must be between 0.2 and 100" });
+    }
+
+    const user = await User.findById(req.userId);
+
+    // Check if using free spin
+    const isFreeSpin = user.freeSpins > 0;
+
+    if (!isFreeSpin && user.balance < betAmount) {
+      return res.status(400).json({ error: "Insufficient balance" });
+    }
+
+    // Deduct bet or free spin
+    if (isFreeSpin) {
+      user.freeSpins -= 1;
+    } else {
+      user.balance -= betAmount;
+    }
+
+    const isBoughtBonus = isBoughtBonusSpin === true;
+    const guaranteeWin = isFirstBoughtSpin === true;
+    const currentBonusMultiplier = bonusMultiplier || 1;
+
+    // Process spin
+    const result = processSpin(
+      betAmount,
+      isBoughtBonus,
+      guaranteeWin,
+      currentBonusMultiplier
+    );
+
+    // Add winnings
+    user.balance += result.totalWin;
+
+    // Add free spins if triggered
+    if (result.triggeredFreeSpins > 0) {
+      user.freeSpins += result.triggeredFreeSpins;
+    }
+
+    await user.save();
+
+    res.json({
+      ...result,
+      newBalance: user.balance,
+      freeSpinsRemaining: user.freeSpins,
+      wasFreeSpin: isFreeSpin,
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
 });
 
 // Buy bonus endpoint
-router.post('/buy-bonus', authMiddleware, async(req, res) => {
-    try {
-        const { betAmount } = req.body;
+router.post("/buy-bonus", authMiddleware, async (req, res) => {
+  try {
+    const { betAmount } = req.body;
 
-        if(!betAmount || betAmount <= 0) {
-            return res.status(400).json({ error: 'Invalid bet amount' });
-        }
-
-        const cost = betAmount * BUY_BONUS_COST;
-        const user = await User.findById(req.userId);
-
-        if(user.balance < cost) {
-            return res.status(400).json({
-                error: `Insufficient balance. Need ${cost} to buy bonus`,
-            });
-        }
-
-        user.balance -= cost;
-        user.freeSpins += FREE_SPINS_AMOUNT;
-        await user.save();
-
-        res.json({
-            success: true,
-            freeSpinsAdded: FREE_SPINS_AMOUNT,
-            cost,
-            newBalance: user.balance,
-            totalFreeSpins: user.freeSpins,
-            isBoughtBonus: true,
-        });
-    } catch(error) {
-        res.status(500).json({ error: error.message });
+    if (!betAmount || betAmount <= 0) {
+      return res.status(400).json({ error: "Invalid bet amount" });
     }
+
+    const cost = betAmount * BUY_BONUS_COST;
+    const user = await User.findById(req.userId);
+
+    if (user.balance < cost) {
+      return res.status(400).json({
+        error: `Insufficient balance. Need ${cost} to buy bonus`,
+      });
+    }
+
+    user.balance -= cost;
+    user.freeSpins += FREE_SPINS_AMOUNT;
+    await user.save();
+
+    res.json({
+      success: true,
+      freeSpinsAdded: FREE_SPINS_AMOUNT,
+      cost,
+      newBalance: user.balance,
+      totalFreeSpins: user.freeSpins,
+      isBoughtBonus: true,
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
 });
 
 module.exports = router;

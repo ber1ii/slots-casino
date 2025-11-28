@@ -1,3 +1,4 @@
+// audioManager.js
 class AudioManager {
   constructor() {
     this.sounds = {
@@ -9,9 +10,11 @@ class AudioManager {
       bonus: new Audio('/sounds/bonus.mp3'),
     };
 
+    // Ambient settings
     this.sounds.ambient.loop = true;
     this.sounds.ambient.volume = 0.08;
 
+    // SFX settings
     this.sounds.spinStart.volume = 0.06;
     this.sounds.click.volume = 0.25;
     this.sounds.bigWin.volume = 0.25;
@@ -19,15 +22,37 @@ class AudioManager {
     this.sounds.bonus.volume = 0.3;
 
     this.enabled = true;
-    this.ambientPlaying = false;
-    this.ambientUnlocked = false;
+    this.isAmbientPlaying = false;
+    
+    // Bind the interaction handler context
+    this.handleInteraction = this.handleInteraction.bind(this);
+    
+    // Attach listeners immediately on load
+    this.attachInteractionListeners();
+  }
+
+  attachInteractionListeners() {
+    // These events cover mouse clicks and keyboard presses
+    ['click', 'keydown', 'touchstart'].forEach((event) => {
+      document.addEventListener(event, this.handleInteraction, { once: true });
+    });
+  }
+
+  handleInteraction() {
+    if (this.enabled && !this.isAmbientPlaying) {
+      this.playAmbient();
+    }
+    
+    ['click', 'keydown', 'touchstart'].forEach((event) => {
+      document.removeEventListener(event, this.handleInteraction);
+    });
   }
 
   toggle() {
     this.enabled = !this.enabled;
 
     if (!this.enabled) {
-      this.stopAmbient();
+      this.stopAll();
     } else {
       this.playAmbient();
     }
@@ -36,34 +61,32 @@ class AudioManager {
   }
 
   playAmbient() {
-    if (this.enabled && !this.ambientPlaying) {
-      this.sounds.ambient.play()
-        .then(() => {
-          this.ambientPlaying = true;
-          this.ambientUnlocked = true;
-        })
-      .catch(() => {
+    if (!this.enabled) return;
+    
+    if (this.isAmbientPlaying) return;
 
-      });
+    const playPromise = this.sounds.ambient.play();
+
+    if (playPromise !== undefined) {
+      playPromise
+        .then(() => {
+          this.isAmbientPlaying = true;
+        })
+        .catch((error) => {
+          console.log("Autoplay prevented. Waiting for interaction.");
+          this.isAmbientPlaying = false;
+          this.attachInteractionListeners();
+        });
     }
   }
 
   stopAmbient() {
     this.sounds.ambient.pause();
-    this.ambientPlaying = false;
+    this.isAmbientPlaying = false;
   }
 
   play(soundName) {
     if (!this.enabled) return;
-
-    // Unlock ambient on first user interaction
-    if(!this.ambientUnlocked) {
-      this.ambientUnlocked = true;
-      if(!this.ambientPlaying) {
-        this.playAmbient();
-      }
-    }
-
     const sound = this.sounds[soundName];
     if (!sound) return;
 
@@ -73,10 +96,14 @@ class AudioManager {
 
   playSpinStart() {
     if (!this.enabled) return;
-
     const sound = this.sounds.spinStart;
     sound.currentTime = 0;
     sound.play().catch(() => {});
+  }
+
+  stopSpinStart() {
+    this.sounds.spinStart.pause();
+    this.sounds.spinStart.currentTime = 0;
   }
 
   stopAll() {
@@ -84,7 +111,7 @@ class AudioManager {
       sound.pause();
       sound.currentTime = 0;
     });
-    this.ambientPlaying = false;
+    this.isAmbientPlaying = false;
   }
 }
 

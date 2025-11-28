@@ -14,21 +14,6 @@ export const useAudio = () => {
 export const AudioProvider = ({ children }) => {
     const [soundEnabled, setSoundEnabled] = useState(true);
 
-    useEffect(() => {
-        // Start ambient music when component mounts
-        const startAmbient = () => {
-            audioManager.playAmbient();
-            document.removeEventListener('click', startAmbient);
-        };
-
-        // Wait for first user interaction (browser requirement)
-        document.addEventListener('click', startAmbient);
-
-        return () => {
-            document.removeEventListener('click', startAmbient);
-        };
-    }, []);
-
     const toggleSound = () => {
         const newState = audioManager.toggle();
         setSoundEnabled(newState);

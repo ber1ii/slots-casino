@@ -1,43 +1,44 @@
-import { useState, useEffect, useRef } from 'react';
-import { useAuth } from '../../context/AuthContext';
-import { slotsAPI } from '../../services/api';
-import toast from 'react-hot-toast';
-import SlotGrid from './SlotGrid';
-import audioManager from '../../utils/audioManager';
-import confetti from 'canvas-confetti';
+import { useState, useEffect, useRef } from "react";
+import { useAuth } from "../../context/AuthContext";
+import { slotsAPI } from "../../services/api";
+import toast from "react-hot-toast";
+import SlotGrid from "./SlotGrid";
+import audioManager from "../../utils/audioManager";
+import confetti from "canvas-confetti";
 import {
   BET_PRESETS,
   GRID_COLS,
   GRID_ROWS,
   SYMBOL_SPRITES,
   PAYOUT_TABLE,
-} from '../../config/gameConfig';
-import { transform } from 'framer-motion';
+} from "../../config/gameConfig";
+import { motion, AnimatePresence } from "framer-motion";
+import { createPortal } from "react-dom";
 
 const getGridBeforeChests = (baseGrid, chestTransforms) => {
-    const tempGrid = baseGrid.map(row => row.map(cell => ({ ...cell })));
+  const tempGrid = baseGrid.map((row) => row.map((cell) => ({ ...cell })));
 
-    chestTransforms.forEach((transform) => {
-      const [cRow, cCol] = transform.chestPosition;
+  chestTransforms.forEach((transform) => {
+    const [cRow, cCol] = transform.chestPosition;
 
-      tempGrid[cRow][cCol] = {
-        id: 'CHEST',
-        uniqueId: transform.chestUniqueId || `chest_${cRow}_${cCol}_anim`,
-        name: 'Chest'
+    tempGrid[cRow][cCol] = {
+      id: "CHEST",
+      uniqueId: transform.chestUniqueId || `chest_${cRow}_${cCol}_anim`,
+      name: "Chest",
+    };
+
+    transform.originalSymbols.forEach((orig) => {
+      const [oRow, oCol] = orig.position;
+      tempGrid[oRow][oCol] = {
+        id: orig.symbolId,
+        uniqueId: orig.uniqueId || `orig_${oRow}_${oCol}_anim`,
+        name: orig.symbolName,
       };
-
-      transform.originalSymbols.forEach((orig) => {
-        const [oRow, oCol] = orig.position;
-        tempGrid[oRow][oCol] = {
-          id: orig.symbolId,
-          uniqueId: orig.uniqueId || `orig_${oRow}_${oCol}_anim`,
-          name: orig.symbolName
-        };
-      });
     });
+  });
 
-    return tempGrid;
-  }
+  return tempGrid;
+};
 
 const SlotGame = () => {
   const { user, updateUser } = useAuth();
@@ -56,7 +57,8 @@ const SlotGame = () => {
   const [showPayoutTable, setShowPayoutTable] = useState(false);
 
   const [isBoughtBonusActive, setIsBoughtBonusActive] = useState(false);
-  const [accumulatedBonusMultiplier, setAccumulatedBonusMultiplier] = useState(1);
+  const [accumulatedBonusMultiplier, setAccumulatedBonusMultiplier] =
+    useState(1);
   const [isFirstBoughtSpin, setIsFirstBoughtSpin] = useState(false);
 
   const [bonusTotalWin, setBonusTotalWin] = useState(0);
@@ -67,49 +69,67 @@ const SlotGame = () => {
 
   const cascadeTimeoutRef = useRef(null);
   const totalWinTimeoutRef = useRef(null);
+  const skipSignalRef = useRef(false);
   const keyList = Object.keys(SYMBOL_SPRITES);
 
   useEffect(() => {
+    const preloadImages = () => {
+      Object.values(SYMBOL_SPRITES).forEach((src) => {
+        const img = new Image();
+        img.src = src;
+      });
+    };
+    preloadImages();
+  }, []);
+
+  useEffect(() => {
     initializeGrid();
+    audioManager.playAmbient();
     return () => {
-      if(cascadeTimeoutRef.current) clearTimeout(cascadeTimeoutRef.current);
-      if(totalWinTimeoutRef.current) clearTimeout(totalWinTimeoutRef.current);
+      if (cascadeTimeoutRef.current) clearTimeout(cascadeTimeoutRef.current);
+      if (totalWinTimeoutRef.current) clearTimeout(totalWinTimeoutRef.current);
     };
   }, []);
 
   useEffect(() => {
     const handleKeyPress = (e) => {
-      if (isSpinning) return;
+      if (isSpinning) {
+        if (isReelSpinning && (e.key === " " || e.key === "Enter")) {
+          e.preventDefault();
+          skipSignalRef.current = true;
+        }
+        return;
+      }
 
       switch (e.key.toLowerCase()) {
-        case ' ':
-        case 'enter':
+        case " ":
+        case "enter":
           e.preventDefault();
           handleSpin();
           break;
-        case 'a':
+        case "a":
           toggleAutoplay();
           break;
-        case 'm':
+        case "m":
           handleMaxBet();
           break;
-        case 'b':
+        case "b":
           setShowBuyBonusModal(true);
           break;
-        case 'arrowup':
+        case "arrowup":
           e.preventDefault();
           increaseBet();
           break;
-        case 'arrowdown':
+        case "arrowdown":
           e.preventDefault();
           decreaseBet();
           break;
       }
     };
 
-    window.addEventListener('keydown', handleKeyPress);
-    return () => window.removeEventListener('keydown', handleKeyPress);
-  }, [isSpinning, betAmount, isAutoPlaying]);
+    window.addEventListener("keydown", handleKeyPress);
+    return () => window.removeEventListener("keydown", handleKeyPress);
+  }, [isSpinning, betAmount, isAutoPlaying, isReelSpinning]);
 
   useEffect(() => {
     const shouldAutoSpin =
@@ -117,14 +137,20 @@ const SlotGame = () => {
       !isSpinning &&
       (user?.balance >= betAmount || user?.freeSpins > 0);
 
-    if(shouldAutoSpin) {
+    if (shouldAutoSpin) {
       const timer = setTimeout(() => {
         handleSpin();
       }, 1500);
 
       return () => clearTimeout(timer);
     }
-  }, [isAutoPlaying, isBoughtBonusActive, isSpinning, user?.freeSpins, user?.balance]);
+  }, [
+    isAutoPlaying,
+    isBoughtBonusActive,
+    isSpinning,
+    user?.freeSpins,
+    user?.balance,
+  ]);
 
   const initializeGrid = () => {
     const initialGrid = Array(GRID_ROWS)
@@ -134,18 +160,32 @@ const SlotGame = () => {
           .fill(null)
           .map((_, colIndex) => ({
             id: keyList[Math.floor(Math.random() * keyList.length)],
-            name: 'initial',
+            name: "initial",
             uniqueId: `init_${rowIndex}_${colIndex}`,
           }))
       );
     setGrid(initialGrid);
   };
 
+  const waitWithSkip = async (minDurationMs) => {
+    const startTime = Date.now();
+
+    while (Date.now() - startTime < minDurationMs) {
+      if (skipSignalRef.current) {
+        return true;
+      }
+      await new Promise((resolve) => setTimeout(resolve, 50));
+    }
+    return false;
+  };
+
   const handleSpin = async () => {
+    audioManager.playAmbient();
+
     if (isSpinning) return;
 
     if (user.balance < betAmount && user.freeSpins === 0) {
-      toast.error('Insufficient balance!');
+      toast.error("Insufficient balance!");
       setIsAutoPlaying(false);
       return;
     }
@@ -153,22 +193,24 @@ const SlotGame = () => {
     setIsSpinning(true);
     setIsReelSpinning(true);
     setWinningPositions([]);
-    
-    if(!isBoughtBonusActive) {
+
+    skipSignalRef.current = false;
+
+    if (!isBoughtBonusActive) {
       setShowTotalWin(false);
     }
 
     setChestTransformPositions([]);
     setChestPositions([]);
 
-    if(!isBoughtBonusActive) {
+    if (!isBoughtBonusActive) {
       setCurrentDisplayMultiplier(1);
     }
 
     audioManager.playSpinStart();
 
     try {
-      const minSpinTime = new Promise(resolve => setTimeout(resolve, 2000));
+      const startTime = Date.now();
 
       // API call
       const spinResult = await slotsAPI.spin(
@@ -184,24 +226,53 @@ const SlotGame = () => {
       let initialVisualGrid = res.data.initialGrid || res.data.finalGrid;
       setGrid(initialVisualGrid);
 
-      if(isFirstBoughtSpin) {
+      if (isFirstBoughtSpin) {
         setIsFirstBoughtSpin(false);
       }
 
-      if(res.data.bonusMultiplier !== undefined) {
+      if (res.data.bonusMultiplier !== undefined) {
         setAccumulatedBonusMultiplier(res.data.bonusMultiplier);
-        if(isBoughtBonusActive) {
+        if (isBoughtBonusActive) {
           setCurrentDisplayMultiplier(res.data.bonusMultiplier);
         }
+      }
+
+      const intermediateBalace = res.data.newBalance - res.data.totalWin;
+
+      updateUser({
+        balance: intermediateBalace,
+        freeSpins: res.data.freeSpinsRemaining,
+      });
+
+      const elapsed = Date.now() - startTime;
+      const remainingTime = Math.max(0, 2000 - elapsed);
+
+      const wasSkipped = await waitWithSkip(remainingTime);
+      if (wasSkipped) {
+        audioManager.stopSpinStart();
+      }
+
+      setIsReelSpinning(false);
+
+      if (isBoughtBonusActive && res.data.totalWin > 0) {
+        setBonusTotalWin((prev) => prev + res.data.totalWin);
+      }
+
+      // Handle Chests
+      if (initialChestTransforms.length > 0) {
+        await new Promise((resolve) => setTimeout(resolve, 200));
+        await handleChestSequence(initialChestTransforms, initialVisualGrid);
+      }
+
+      // Handle Cascades
+      if (res.data.cascades && res.data.cascades.length > 0) {
+        await processCascades(res.data.cascades, res.data.finalGrid);
       }
 
       updateUser({
         balance: res.data.newBalance,
         freeSpins: res.data.freeSpinsRemaining,
       });
-
-      await minSpinTime;
-      setIsReelSpinning(false);
 
       addTransaction({
         bet: betAmount,
@@ -210,42 +281,24 @@ const SlotGame = () => {
         timestamp: new Date().toLocaleTimeString(),
       });
 
-      if(isBoughtBonusActive && res.data.totalWin > 0) {
-        setBonusTotalWin((prev) => prev + res.data.totalWin);
-      }
-
-      // Handle Chests
-      if(initialChestTransforms.length > 0) {
-        await new Promise(resolve => setTimeout(resolve, 200));
-        await handleChestSequence(
-          initialChestTransforms,
-          initialVisualGrid
-        );
-      }
-
-      // Handle Cascades
-      if(res.data.cascades && res.data.cascades.length > 0) {
-        await processCascades(res.data.cascades, res.data.finalGrid);
-      } 
-      
       // Handle Win Display
-      if(res.data.totalWin > 0 && !isBoughtBonusActive) {
+      if (res.data.totalWin > 0 && !isBoughtBonusActive) {
         setTotalWinAmount(res.data.totalWin);
         setShowTotalWin(true);
-        audioManager.play('bigWin');
+        audioManager.play("bigWin");
         triggerConfetti();
 
         totalWinTimeoutRef.current = setTimeout(() => {
           setShowTotalWin(false);
         }, 4000);
-      } else if(res.data.totalWin > 0 && isBoughtBonusActive) {
+      } else if (res.data.totalWin > 0 && isBoughtBonusActive) {
         toast.success(`💰 Spin Win: $${res.data.totalWin.toFixed(2)}`, {
           duration: 2000,
         });
       }
 
-      if(isBoughtBonusActive && res.data.freeSpinsRemaining === 0) {
-        await new Promise(resolve => setTimeout(resolve, 1000));
+      if (isBoughtBonusActive && res.data.freeSpinsRemaining === 0) {
+        await new Promise((resolve) => setTimeout(resolve, 1000));
 
         setIsBoughtBonusActive(false);
         setAccumulatedBonusMultiplier(1);
@@ -253,22 +306,25 @@ const SlotGame = () => {
 
         const finalTotalWin = bonusTotalWin + res.data.totalWin;
 
-        if(finalTotalWin > 0) {
+        if (finalTotalWin > 0) {
           setTotalWinAmount(finalTotalWin);
           setShowTotalWin(true);
-          audioManager.play('bigWin');
+          audioManager.play("bigWin");
           triggerConfetti();
 
-          toast.success(`🎉 BONUS COMPLETE! Total: $${finalTotalWin.toFixed(2)}`, {
-            duration: 5000,
-          });
+          toast.success(
+            `🎉 BONUS COMPLETE! Total: $${finalTotalWin.toFixed(2)}`,
+            {
+              duration: 5000,
+            }
+          );
 
           setTimeout(() => {
             setShowTotalWin(false);
             setBonusTotalWin(0);
           }, 5000);
         } else {
-          toast.success('Bonus round completed!');
+          toast.success("Bonus round completed!");
           setBonusTotalWin(0);
         }
       }
@@ -276,26 +332,26 @@ const SlotGame = () => {
       if (res.data.triggeredFreeSpins > 0) {
         toast.success(`🎉 BONUS! ${res.data.triggeredFreeSpins} Free Spins!`, {
           duration: 5000,
-          icon: '🎰',
+          icon: "🎰",
         });
-        audioManager.play('bigWin');
+        audioManager.play("bigWin");
 
         if (!isBoughtBonusActive) {
           setIsBoughtBonusActive(true);
           setAccumulatedBonusMultiplier(1);
           setCurrentDisplayMultiplier(1);
           setBonusTotalWin(0);
-          toast.success('🌟 BONUS MODE ACTIVATED!', { duration: 3000 });
+          toast.success("🌟 BONUS MODE ACTIVATED!", { duration: 3000 });
         }
       }
     } catch (err) {
-      toast.error(err.response?.data?.error || 'Spin failed');
-      console.error('Spin error:', err);
+      toast.error(err.response?.data?.error || "Spin failed");
+      console.error("Spin error:", err);
       setIsAutoPlaying(false);
       setIsReelSpinning(false); // Safety turn off
     } finally {
       setIsSpinning(false);
-      if(!isBoughtBonusActive) {
+      if (!isBoughtBonusActive) {
         setCurrentDisplayMultiplier(1);
       }
     }
@@ -309,21 +365,23 @@ const SlotGame = () => {
     // 1. Highlight chests
     const allChestPositions = chestTransforms.map((t) => t.chestPosition);
     setChestPositions(allChestPositions); // Passed to Grid, triggers 'chestHighlight' variant
-    
-    toast.success('🎁 CHEST APPEARED!', { duration: 2000 });
-    audioManager.play('bigWin');
+
+    toast.success("🎁 CHEST APPEARED!", { duration: 2000 });
+    audioManager.play("bigWin");
     await new Promise((resolve) => setTimeout(resolve, 1000));
 
     setChestPositions([]);
     await new Promise((resolve) => setTimeout(resolve, 300));
 
     // 2. For each chest, highlight original symbols, then transform
-    for(const transform of chestTransforms) {
-      const originalPositions = transform.originalSymbols.map((s) => s.position);
+    for (const transform of chestTransforms) {
+      const originalPositions = transform.originalSymbols.map(
+        (s) => s.position
+      );
 
       // Highlight original symbols
       setChestTransformPositions(originalPositions);
-      toast.success('TRANSFORMING...', { duration: 1500 });
+      toast.success("TRANSFORMING...", { duration: 1500 });
       await new Promise((resolve) => setTimeout(resolve, 1000));
 
       // Apply transformation (Update data)
@@ -338,8 +396,8 @@ const SlotGame = () => {
         const [cRow, cCol] = transform.chestPosition;
         newGrid[cRow][cCol] = {
           ...newGrid[cRow][cCol],
-          id: 'CHEST_OPENED',
-          name: 'Opened Chest'
+          id: "CHEST_OPENED",
+          name: "Opened Chest",
         };
 
         return newGrid;
@@ -359,15 +417,15 @@ const SlotGame = () => {
       const isLast = i === cascades.length - 1;
       const nextGrid = cascade.nextGridState;
 
-      if(!isBoughtBonusActive) {
+      if (!isBoughtBonusActive) {
         setCurrentDisplayMultiplier(cascade.progressiveMult);
       }
 
       setGrid(cascade.grid);
-      await sleep(800);
+      await sleep(400);
 
       const allWinningPositions = cascade.clusters.flatMap((cluster) => {
-        if(cluster.symbol === '📦' || cluster.symbol === 'CHEST_OPENED') {
+        if (cluster.symbol === "📦" || cluster.symbol === "CHEST_OPENED") {
           return [];
         }
         return cluster.positions;
@@ -375,33 +433,33 @@ const SlotGame = () => {
       setWinningPositions(allWinningPositions);
 
       if (cascade.cascadeWin > 0) {
-        audioManager.play('clusterWin');
+        audioManager.play("clusterWin");
         toast.success(`💰 +$${cascade.cascadeWin.toFixed(2)}`, {
           duration: 2000,
         });
       }
 
-      await sleep(1200);
+      await sleep(800);
 
       setIsCascading(true);
       setWinningPositions([]);
-      
+
       let gridToDisplay = nextGrid;
-      if(cascade.chestTransforms && cascade.chestTransforms.length > 0) {
+      if (cascade.chestTransforms && cascade.chestTransforms.length > 0) {
         gridToDisplay = getGridBeforeChests(nextGrid, cascade.chestTransforms);
       }
 
       setGrid(gridToDisplay);
 
-      await sleep(600);
-      
+      await sleep(450);
+
       setIsCascading(false);
 
-      if(cascade.chestTransforms && cascade.chestTransforms.length > 0) {
+      if (cascade.chestTransforms && cascade.chestTransforms.length > 0) {
         await handleChestSequence(cascade.chestTransforms, gridToDisplay);
       }
     }
-    if(!isBoughtBonusActive) {
+    if (!isBoughtBonusActive) {
       setCurrentDisplayMultiplier(1);
     }
 
@@ -418,7 +476,7 @@ const SlotGame = () => {
         angle: 60,
         spread: 55,
         origin: { x: 0 },
-        colors: ['#a855f7', '#ec4899', '#8b5cf6'],
+        colors: ["#a855f7", "#ec4899", "#8b5cf6"],
       });
 
       confetti({
@@ -426,7 +484,7 @@ const SlotGame = () => {
         angle: 120,
         spread: 55,
         origin: { x: 1 },
-        colors: ['#a855f7', '#ec4899', '#8b5cf6'],
+        colors: ["#a855f7", "#ec4899", "#8b5cf6"],
       });
 
       if (Date.now() < end) {
@@ -442,7 +500,7 @@ const SlotGame = () => {
     const bonusCost = betAmount * 100;
 
     if (user.balance < bonusCost) {
-      toast.error('Insufficient balance!');
+      toast.error("Insufficient balance!");
       return;
     }
 
@@ -459,25 +517,25 @@ const SlotGame = () => {
       setIsFirstBoughtSpin(true);
       setBonusTotalWin(0);
 
-      toast.success('🎰 BONUS PURCHASED! Starting...', { duration: 3000 });
-      audioManager.play('bigWin');
+      toast.success("🎰 BONUS PURCHASED! Starting...", { duration: 3000 });
+      audioManager.play("bigWin");
       setShowBuyBonusModal(false);
     } catch (err) {
-      toast.error(err.response?.data?.error || 'Failed to buy bonus');
+      toast.error(err.response?.data?.error || "Failed to buy bonus");
     }
   };
 
   const handleMaxBet = () => {
-    audioManager.play('click');
+    audioManager.play("click");
     setBetAmount(100);
-    toast.success('Max bet selected: $100');
+    toast.success("Max bet selected: $100");
   };
 
   const increaseBet = () => {
     const currentIndex = BET_PRESETS.indexOf(betAmount);
     if (currentIndex < BET_PRESETS.length - 1) {
       setBetAmount(BET_PRESETS[currentIndex + 1]);
-      audioManager.play('click');
+      audioManager.play("click");
     }
   };
 
@@ -485,14 +543,14 @@ const SlotGame = () => {
     const currentIndex = BET_PRESETS.indexOf(betAmount);
     if (currentIndex > 0) {
       setBetAmount(BET_PRESETS[currentIndex - 1]);
-      audioManager.play('click');
+      audioManager.play("click");
     }
   };
 
   const toggleAutoplay = () => {
     setIsAutoPlaying(!isAutoPlaying);
-    toast.success(isAutoPlaying ? 'Autoplay stopped' : 'Autoplay started');
-    audioManager.play('click');
+    toast.success(isAutoPlaying ? "Autoplay stopped" : "Autoplay started");
+    audioManager.play("click");
   };
 
   const addTransaction = (transaction) => {
@@ -521,7 +579,7 @@ const SlotGame = () => {
               <button
                 onClick={() => {
                   setShowBuyBonusModal(false);
-                  audioManager.play('click');
+                  audioManager.play("click");
                 }}
                 className="flex-1 px-6 py-3 bg-gray-700 text-white font-bold rounded-lg hover:bg-gray-600 transition-all"
               >
@@ -607,14 +665,14 @@ const SlotGame = () => {
             </div>
 
             <p className="text-center text-gray-400 text-sm mb-4">
-              Minimum cluster size:{' '}
+              Minimum cluster size:{" "}
               <strong className="text-white">6 symbols</strong>
             </p>
 
             <button
               onClick={() => {
                 setShowPayoutTable(false);
-                audioManager.play('click');
+                audioManager.play("click");
               }}
               className="w-full px-6 py-3 bg-gradient-to-r from-purple-600 to-pink-600 text-white font-bold rounded-lg hover:from-purple-500 hover:to-pink-500 transition-all"
             >
@@ -624,61 +682,74 @@ const SlotGame = () => {
         </div>
       )}
 
-      {showTotalWin && (
-        <div className="fixed inset-0 z-50 pointer-events-none flex items-center justify-center">
-          <div className="text-center animate-bounce">
-            <div className="text-6xl md:text-8xl font-black text-transparent bg-clip-text bg-gradient-to-r from-yellow-400 via-pink-500 to-purple-600 drop-shadow-[0_0_30px_rgba(168,85,247,0.8)]">
-              💰 ${totalWinAmount.toFixed(2)} 💰
-            </div>
-            <div className="text-3xl md:text-5xl font-bold text-white mt-4 drop-shadow-[0_0_20px_rgba(255,255,255,0.8)]">
-              TOTAL WIN!
-            </div>
-          </div>
-        </div>
-      )}
-
-      <div className="fixed bottom-8 left-8 z-40">
-        <div
-          className={`rounded-2xl p-6 shadow-2xl transition-all duration-300 ${
-            isBoughtBonusActive
-              ? 'bg-gradient-to-br from-yellow-500 to-orange-600 border-4 border-yellow-300 animate-pulse'
-              : currentDisplayMultiplier > 1
-              ? 'bg-gradient-to-br from-blue-500 to-cyan-600 border-4 border-cyan-300 animate-pulse'
-              : 'bg-gradient-to-br from-gray-700 to-gray-800 border-2 border-gray-600'
-          }`}
-        >
-          <div className="text-center">
-            <div className="text-sm font-bold text-white uppercase tracking-wider mb-2">
-              {isBoughtBonusActive ? 'Bonus Multiplier' : 'Cascade Multiplier'}
-            </div>
-            <div className="text-5xl font-black text-white drop-shadow-lg">
-              {isBoughtBonusActive
-                ? `${accumulatedBonusMultiplier.toFixed(1)}x`
-                : `${currentDisplayMultiplier}x`}
-            </div>
-            {isBoughtBonusActive && (
-              <div className="text-xs text-yellow-100 mt-2">
-                Multipliers ADD up!
+      {/* Total Win Splash */}
+      {showTotalWin &&
+        createPortal(
+          <div className="fixed inset-0 z-[100] pointer-events-none flex items-center justify-center">
+            <div className="text-center animate-bounce">
+              <div className="text-6xl md:text-8xl font-black text-transparent bg-clip-text bg-gradient-to-r from-yellow-400 via-pink-500 to-purple-600 drop-shadow-[0_0_30px_rgba(168,85,247,0.8)]">
+                💰 ${totalWinAmount.toFixed(2)} 💰
               </div>
-            )}
-          </div>
-        </div>
-      </div>
+              <div className="text-3xl md:text-5xl font-bold text-white mt-4 drop-shadow-[0_0_20px_rgba(255,255,255,0.8)]">
+                TOTAL WIN!
+              </div>
+            </div>
+          </div>,
+          document.body
+        )}
 
-      {isBoughtBonusActive && bonusTotalWin > 0 && (
-        <div className="fixed bottom-8 left-1/2 transform -translate-x-1/2 z-40">
-          <div className="bg-gradient-to-br from-green-500 to-emerald-600 border-4 border-green-300 rounded-2xl p-6 shadow-2xl">
+      {/* Floating Multiplier Tracker */}
+      {createPortal(
+        <div className="fixed bottom-8 left-8 z-[90]">
+          <div
+            className={`rounded-2xl p-6 shadow-2xl transition-all duration-300 ${
+              isBoughtBonusActive
+                ? "bg-gradient-to-br from-yellow-500 to-orange-600 border-4 border-yellow-300 animate-pulse"
+                : currentDisplayMultiplier > 1
+                ? "bg-gradient-to-br from-blue-500 to-cyan-600 border-4 border-cyan-300 animate-pulse"
+                : "bg-gradient-to-br from-gray-700 to-gray-800 border-2 border-gray-600"
+            }`}
+          >
             <div className="text-center">
               <div className="text-sm font-bold text-white uppercase tracking-wider mb-2">
-                Bonus Total Win
+                {isBoughtBonusActive
+                  ? "Bonus Multiplier"
+                  : "Cascade Multiplier"}
               </div>
-              <div className="text-4xl font-black text-white drop-shadow-lg">
-                ${bonusTotalWin.toFixed(2)}
+              <div className="text-5xl font-black text-white drop-shadow-lg">
+                {isBoughtBonusActive
+                  ? `${accumulatedBonusMultiplier.toFixed(1)}x`
+                  : `${currentDisplayMultiplier}x`}
               </div>
+              {isBoughtBonusActive && (
+                <div className="text-xs text-yellow-100 mt-2">
+                  Multipliers ADD up!
+                </div>
+              )}
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
+
+      {/* Bonus Win Tracker */}
+      {isBoughtBonusActive &&
+        bonusTotalWin > 0 &&
+        createPortal(
+          <div className="fixed bottom-8 left-1/2 transform -translate-x-1/2 z-[90]">
+            <div className="bg-gradient-to-br from-green-500 to-emerald-600 border-4 border-green-300 rounded-2xl p-6 shadow-2xl">
+              <div className="text-center">
+                <div className="text-sm font-bold text-white uppercase tracking-wider mb-2">
+                  Bonus Total Win
+                </div>
+                <div className="text-4xl font-black text-white drop-shadow-lg">
+                  ${bonusTotalWin.toFixed(2)}
+                </div>
+              </div>
+            </div>
+          </div>,
+          document.body
+        )}
 
       {/* Rest of UI */}
       <div className="flex items-start justify-center gap-8 px-4 min-h-[calc(100vh-150px)]">
@@ -735,7 +806,7 @@ const SlotGame = () => {
                       <span className="text-gray-400">Win:</span>
                       <span
                         className={
-                          tx.win > 0 ? 'text-green-400' : 'text-gray-500'
+                          tx.win > 0 ? "text-green-400" : "text-gray-500"
                         }
                       >
                         ${tx.win.toFixed(2)}
@@ -751,8 +822,8 @@ const SlotGame = () => {
           </div>
         </div>
 
-        {/* CENTER: Grid */}
-        <div className="w-[900px] h-[750px]">
+        {/* Grid + Skip Pop */}
+        <div className="relative w-[900px] h-[750px] flex flex-col items-center justify-end gap-6">
           <SlotGrid
             grid={grid}
             winningPositions={winningPositions}
@@ -761,6 +832,24 @@ const SlotGame = () => {
             chestTransformPositions={chestTransformPositions}
             chestPositions={chestPositions}
           />
+
+          <AnimatePresence>
+            {isReelSpinning && (
+              <motion.div
+                initial={{ opacity: 0, y: -10 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, transition: { duration: 0.2 } }}
+                className="absolute -bottom-16 z-50 whitespace-nowrap"
+              >
+                <div className="bg-purple-900/80 backdrop-blur-sm border border-purple-400/50 text-purple-100 px-6 py-2 rounded-full shadow-[0_0_15px_rgba(168,85,247,0.4)] text-sm font-bold uppercase tracking-widest flex items-center gap-2">
+                  <span className="bg-white/20 px-2 py-0.5 rounded text-xs">
+                    Space
+                  </span>
+                  <span> to Skip</span>
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
         </div>
 
         {/* RIGHT: Controls */}
@@ -778,13 +867,13 @@ const SlotGame = () => {
                   key={preset}
                   onClick={() => {
                     setBetAmount(preset);
-                    audioManager.play('click');
+                    audioManager.play("click");
                   }}
                   disabled={isSpinning}
                   className={`px-3 py-2 rounded-lg flex items-center justify-center font-semibold transition-all ${
                     betAmount === preset
-                      ? 'bg-purple-600 text-white'
-                      : 'bg-gray-800 text-gray-300 hover:bg-gray-700'
+                      ? "bg-purple-600 text-white"
+                      : "bg-gray-800 text-gray-300 hover:bg-gray-700"
                   } disabled:opacity-50`}
                 >
                   ${preset}
@@ -818,21 +907,23 @@ const SlotGame = () => {
             disabled={isSpinning || isBoughtBonusActive}
             className={`text-xl py-4 px-6 font-bold rounded-xl border-2 transition-all disabled:opacity-50 shadow-lg ${
               isAutoPlaying
-                ? 'bg-gradient-to-r from-red-900 to-orange-900 border-red-500/40 hover:from-red-800 hover:to-orange-800'
-                : 'bg-gradient-to-r from-blue-900 to-cyan-900 border-cyan-500/40 hover:from-blue-800 hover:to-cyan-800'
+                ? "bg-gradient-to-r from-red-900 to-orange-900 border-red-500/40 hover:from-red-800 hover:to-orange-800"
+                : "bg-gradient-to-r from-blue-900 to-cyan-900 border-cyan-500/40 hover:from-blue-800 hover:to-cyan-800"
             }`}
           >
-            {isAutoPlaying
-              ? `⏸️ STOP AUTO`
-              : '▶️ AUTOPLAY'}
+            {isAutoPlaying ? `⏸️ STOP AUTO` : "▶️ AUTOPLAY"}
           </button>
 
           <button
             onClick={() => {
               setShowBuyBonusModal(true);
-              audioManager.play('click');
+              audioManager.play("click");
             }}
-            disabled={!(user?.balance >= betAmount * 100) || isSpinning || isBoughtBonusActive}
+            disabled={
+              !(user?.balance >= betAmount * 100) ||
+              isSpinning ||
+              isBoughtBonusActive
+            }
             className="text-xl py-6 px-8 bg-gradient-to-r from-purple-900 to-pink-900 text-white font-bold rounded-xl border-2 border-pink-500/40 hover:from-purple-800 hover:to-pink-800 transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-lg hover:shadow-pink-500/50"
           >
             💎 BUY BONUS
@@ -845,7 +936,7 @@ const SlotGame = () => {
           <button
             onClick={() => {
               setShowPayoutTable(true);
-              audioManager.play('click');
+              audioManager.play("click");
             }}
             className="text-base py-3 px-6 bg-gradient-to-r from-indigo-900 to-blue-900 text-white font-bold rounded-xl border-2 border-blue-500/40 hover:from-indigo-800 hover:to-blue-800 transition-all shadow-lg"
           >
