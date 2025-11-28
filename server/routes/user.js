@@ -33,4 +33,46 @@ router.get('/balance', authMiddleware, async (req, res) => {
     }
 });
 
+// Get Leaderboard (Top 10 By Balance)
+router.get('/leaderboard', async (req, res) => {
+    try {
+        const leaderboard = await User.find()
+            .sort({ balance: -1 })
+            .limit(10)
+            .select('username balance freeSpins totalWagered biggestMultiplier');
+
+        res.json(leaderboard);
+    } catch(error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// Get User Statistics
+router.get('/stats', authMiddleware, async (req, res) => {
+    try {
+        const user = await User.findById(req.userId);
+
+        const stats = {
+            // User
+            username: user.username,
+            joinDate: user.createdAt || new Date(),
+            // Economy
+            balance: user.balance,
+            freeSpins: user.freeSpins,
+            // Gameplay stats
+            totalSpins: user.totalSpins || 0,
+            totalWins: user.totalWins || 0,
+            totalWagered: user.totalWagered || 0,
+            highestWin: user.highestWin || 0,
+            biggestMultiplier: user.biggestMultiplier || 0,
+            lastWin: user.lastWin || 0,
+            lastSpinAt: user.lastSpinAt
+        };
+
+        res.json(stats);
+    } catch(error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
 module.exports = router;

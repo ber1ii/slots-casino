@@ -39,10 +39,6 @@ class AudioManager {
   }
 
   handleInteraction() {
-    if (this.enabled && !this.isAmbientPlaying) {
-      this.playAmbient();
-    }
-    
     ['click', 'keydown', 'touchstart'].forEach((event) => {
       document.removeEventListener(event, this.handleInteraction);
     });

@@ -32,7 +32,7 @@
   }
 
   .cyberpunk-bg {
-    @apply bg-gradient-to-br from-purple-950 via-gray-900 to-black min-h-screen;
+    @apply min-h-screen;
   }
 }
 
@@ -88,10 +88,6 @@
   }
 }
 
-.perspective-1000 {
-  perspective: 1000px;
-}
-
 .blur-motion {
   animation: blurStart 0.2s ease-in forwards;
 }
@@ -102,4 +98,13 @@
 
 .animation-delay-200 {
   animation-delay: 0.2s;
+}
+
+html::-webkit-scrollbar, body::-webkit-scrollbar, #root::-webkit-scrollbar {
+  display: none;
+}
+
+html, body, #root {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
 }

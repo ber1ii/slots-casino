@@ -60,6 +60,8 @@ const SlotGame = () => {
   const [accumulatedBonusMultiplier, setAccumulatedBonusMultiplier] =
     useState(1);
   const [isFirstBoughtSpin, setIsFirstBoughtSpin] = useState(false);
+  const [scatterColumns, setScatterColumns] = useState([]);
+  const [anticipationActive, setAnticipationActive] = useState(false);
 
   const [bonusTotalWin, setBonusTotalWin] = useState(0);
   const [currentDisplayMultiplier, setCurrentDisplayMultiplier] = useState(1);
@@ -70,6 +72,7 @@ const SlotGame = () => {
   const cascadeTimeoutRef = useRef(null);
   const totalWinTimeoutRef = useRef(null);
   const skipSignalRef = useRef(false);
+  const reelFinishedResolver = useRef(null);
   const keyList = Object.keys(SYMBOL_SPRITES);
 
   useEffect(() => {
@@ -167,7 +170,7 @@ const SlotGame = () => {
     setGrid(initialGrid);
   };
 
-  const waitWithSkip = async (minDurationMs) => {
+  const waitForAnimationOrSkip = async (minDurationMs) => {
     const startTime = Date.now();
 
     while (Date.now() - startTime < minDurationMs) {
@@ -176,6 +179,13 @@ const SlotGame = () => {
       }
       await new Promise((resolve) => setTimeout(resolve, 50));
     }
+
+    if(skipSignalRef.current) return true;
+
+    await new Promise((resolve) => {
+      reelFinishedResolver.current = resolve;
+    });
+
     return false;
   };
 
@@ -193,7 +203,7 @@ const SlotGame = () => {
     setIsSpinning(true);
     setIsReelSpinning(true);
     setWinningPositions([]);
-
+    setScatterColumns([]);
     skipSignalRef.current = false;
 
     if (!isBoughtBonusActive) {
@@ -223,6 +233,20 @@ const SlotGame = () => {
       const res = { data: spinResult.data };
       const initialChestTransforms = res.data.initialChestTransforms || [];
 
+      const newScatterCols = Array(GRID_COLS).fill(false);
+      
+      if(res.data.initialGrid) {
+        res.data.initialGrid.forEach((row) => {
+          row.forEach((symbol, colIndex) => {
+            if(symbol.id === 'SCATTER') {
+              newScatterCols[colIndex] = true;
+            }
+          });
+        });
+      }
+
+      setScatterColumns(newScatterCols);
+
       let initialVisualGrid = res.data.initialGrid || res.data.finalGrid;
       setGrid(initialVisualGrid);
 
@@ -244,12 +268,11 @@ const SlotGame = () => {
         freeSpins: res.data.freeSpinsRemaining,
       });
 
-      const elapsed = Date.now() - startTime;
-      const remainingTime = Math.max(0, 2000 - elapsed);
-
-      const wasSkipped = await waitWithSkip(remainingTime);
+      const wasSkipped = await waitForAnimationOrSkip(500);
       if (wasSkipped) {
         audioManager.stopSpinStart();
+
+        if(reelFinishedResolver.current) reelFinishedResolver.current();
       }
 
       setIsReelSpinning(false);
@@ -831,6 +854,12 @@ const SlotGame = () => {
             isCascading={isCascading}
             chestTransformPositions={chestTransformPositions}
             chestPositions={chestPositions}
+            scatterColumns={scatterColumns}
+            onLastReelStop={() => {
+              if(reelFinishedResolver.current) {
+                reelFinishedResolver.current();
+              }
+            }}
           />
 
           <AnimatePresence>

@@ -27,6 +27,8 @@ export const authAPI = {
 export const userAPI = {
     addBalance: (amount) => api.post('/user/add-balance', { amount }),
     getBalance: () => api.get('/user/balance'),
+    getLeaderboard: () => api.get('/user/leaderboard'),
+    getStats: () => api.get('/user/stats'),
 };
 
 // Slots endpoints

@@ -29,14 +29,14 @@ const SlotSymbol = ({ symbol, isWinning, isRolling, isCascading }) => {
           initial={{ opacity: isRolling ? 0.7 : 1 }}
           animate={{
             opacity: 1,
-            scale: isWinning && !isExploding ? [1, 1.15, 1.1] : 1,
+            scale: isWinning && !isExploding ? [1, 1.1, 1.1] : 1,
             rotate: isWinning && !isExploding ? [0, -5, 5, -5, 0] : 0,
             filter:
               isWinning && !isExploding
                 ? [
-                    'brightness(1) drop-shadow(0 0 10px rgba(168,85,247,0.8))',
-                    'brightness(1.3) drop-shadow(0 0 25px rgba(168,85,247,1))',
-                    'brightness(1.15) drop-shadow(0 0 20px rgba(168,85,247,0.9))',
+                    'brightness(1) drop-shadow(0 0 5px rgba(168,85,247,0.8))',
+                    'brightness(1.3) drop-shadow(0 0 15px rgba(168,85,247,1))',
+                    'brightness(1.15) drop-shadow(0 0 10px rgba(168,85,247,0.9))',
                   ]
                 : 'brightness(1) drop-shadow(0 0 0px rgba(0,0,0,0))',
           }}
@@ -45,7 +45,7 @@ const SlotSymbol = ({ symbol, isWinning, isRolling, isCascading }) => {
             isRolling
               ? { duration: 0.1 } // Super fast during spin
               : {
-                  duration: isWinning && !isExploding ? 0.2 : 0.1,
+                  duration: isWinning && !isExploding ? 0.4 : 0.1,
                   repeat: isWinning && !isExploding ? Infinity : 0,
                   repeatType: 'reverse',
                 }
@@ -61,16 +61,16 @@ const SlotSymbol = ({ symbol, isWinning, isRolling, isCascading }) => {
             transition={{ duration: 0.8, repeat: Infinity }}
           />
           <motion.div
-            className="absolute inset-0 rounded-lg border-2 border-purple-400"
+            className="absolute inset-1 rounded-lg border-2 border-purple-400"
             animate={{
               borderColor: [
                 'rgba(168, 85, 247, 0.8)',
                 'rgba(236, 72, 153, 1)',
                 'rgba(168, 85, 247, 0.8)',
               ],
-              scale: [1, 1.05, 1],
+              opacity: [0.8, 1, 0.8]
             }}
-            transition={{ duration: 0.8, repeat: Infinity }}
+            transition={{ duration: 1.5, repeat: Infinity }}
           />
         </>
       )}
