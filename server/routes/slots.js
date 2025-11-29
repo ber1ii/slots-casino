@@ -40,21 +40,21 @@ const SYMBOLS = {
   RING: {
     id: "RING",
     symbol: "💍",
-    weight: 12,
+    weight: 14,
     tier: 2,
     name: "Ring",
   },
   HOURGLASS: {
     id: "HOURGLASS",
     symbol: "⏳",
-    weight: 10,
+    weight: 12,
     tier: 2,
     name: "Hourglass",
   },
   CROWN: {
     id: "CROWN",
     symbol: "👑",
-    weight: 9,
+    weight: 10,
     tier: 2,
     name: "Crown",
   },
@@ -100,7 +100,7 @@ const SYMBOLS = {
   CHEST: {
     id: "CHEST",
     symbol: "🎁",
-    weight: 0.3,
+    weight: 0.4,
     name: "Chest",
   },
 
@@ -108,7 +108,7 @@ const SYMBOLS = {
   SCATTER: {
     id: "SCATTER",
     symbol: "⭐",
-    weight: 0.5,
+    weight: 0.65,
     name: "Scatter",
   },
   CHEST_OPENED: {
@@ -170,11 +170,11 @@ function getRandomSymbol(isBoughtBonus = false, excludeChest = false) {
     // Boost scatters, mult, tier 2 and wilds during bonus
     if (s.id === "SCATTER") return s.weight * 3.5;
     if (s.multiplier !== undefined) return s.weight * 5;
-    if (s.tier === 2) return s.weight * 1.75;
+    if (s.tier === 2) return s.weight * 1.5;
     if (s.id === "WILD") return s.weight * 1.4;
     if (s.id === "CHEST") return s.weight * 1.75;
 
-    return s.weight * 0.5; // Slightly reduces tier 1
+    return s.weight * 0.65; // Slightly reduces tier 1
   });
 
   const totalWeight = weights.reduce((sum, w) => sum + w, 0);

@@ -81,6 +81,7 @@ const SlotGame = () => {
 
   if (loading) return null;
 
+  // ... (UseEffects remain the same) ...
   useEffect(() => {
     const preloadImages = () => {
       Object.values(SYMBOL_SPRITES).forEach((src) => {
@@ -216,12 +217,19 @@ const SlotGame = () => {
       return;
     }
 
+    if (navigator.vibrate) navigator.vibrate(20);
+
     setIsSpinning(true);
     setIsReelSpinning(true);
     setWinningPositions([]);
     skipSignalRef.current = false;
     setChestTransformPositions([]);
     setChestPositions([]);
+
+    // Reset visual win on new spin if not accumulating
+    if (!isBoughtBonusActive) {
+      setTotalWinAmount(0);
+    }
 
     if (!isBoughtBonusActive) {
       setShowTotalWin(false);
@@ -299,20 +307,21 @@ const SlotGame = () => {
         });
       }
 
-      if (res.data.totalWin > 0 && !isBoughtBonusActive) {
+      // Update total win amount for the UI indicator and Splash
+      if (res.data.totalWin > 0) {
         setTotalWinAmount(res.data.totalWin);
+      }
+
+      if (res.data.totalWin > 0 && !isBoughtBonusActive) {
+        if (navigator.vibrate) navigator.vibrate([50, 50, 50]);
         setShowTotalWin(true);
         if (res.data.totalWin > betAmount * 100) audioManager.play("bigWin");
         else audioManager.play("clusterWin");
         triggerConfetti();
         totalWinTimeoutRef.current = setTimeout(() => {
           setShowTotalWin(false);
-        }, 1000);
-      } else if (res.data.totalWin > 0 && isBoughtBonusActive) {
-        toast.success(`Spin Win: $${res.data.totalWin.toFixed(2)}`, {
-          duration: 1200,
-        });
-      }
+        }, 2000);
+      } 
 
       if (
         isBoughtBonusActive &&
@@ -334,7 +343,7 @@ const SlotGame = () => {
           setShowTotalWin(true);
           audioManager.play("bigWin");
           triggerConfetti();
-          await new Promise((resolve) => setTimeout(resolve, 5000));
+          await new Promise((resolve) => setTimeout(resolve, 3000));
           setShowTotalWin(false);
           setBonusTotalWin(0);
           setIsBoughtBonusActive(false);
@@ -353,7 +362,7 @@ const SlotGame = () => {
 
       if (res.data.triggeredFreeSpins > 0) {
         toast.success(`BONUS! ${res.data.triggeredFreeSpins} Free Spins!`, {
-          duration: 3200,
+          duration: 5000,
         });
         audioManager.playBonusAmbient();
         if (!isBoughtBonusActive) {
@@ -379,7 +388,6 @@ const SlotGame = () => {
     await new Promise((resolve) => setTimeout(resolve, 500));
     const allChestPositions = chestTransforms.map((t) => t.chestPosition);
     setChestPositions(allChestPositions);
-    toast.success("氏 CHEST APPEARED!", { duration: 1500 });
     audioManager.play("chest");
     await new Promise((resolve) => setTimeout(resolve, 1000));
     setChestPositions([]);
@@ -390,7 +398,6 @@ const SlotGame = () => {
         (s) => s.position
       );
       setChestTransformPositions(originalPositions);
-      toast.success("TRANSFORMING...", { duration: 1500 });
       await new Promise((resolve) => setTimeout(resolve, 1000));
 
       setGrid((prevGrid) => {
@@ -441,7 +448,7 @@ const SlotGame = () => {
       currentGridState = cascade.grid;
       await sleep(400);
       const allWinningPositions = cascade.clusters.flatMap((cluster) => {
-        if (cluster.symbol === "逃" || cluster.symbol === "CHEST_OPENED")
+        if (cluster.symbol.id === "CHEST_OPENED")
           return [];
         return cluster.positions;
       });
@@ -532,7 +539,6 @@ const SlotGame = () => {
       setCurrentDisplayMultiplier(1);
       setIsFirstBoughtSpin(true);
       setBonusTotalWin(0);
-      toast.success("BONUS PURCHASED! Starting...", { duration: 1800 });
       setShowBuyBonusModal(false);
     } catch (err) {
       toast.error(err.response?.data?.error || "Failed to buy bonus");
@@ -569,7 +575,7 @@ const SlotGame = () => {
 
   return (
     <div className="relative w-full h-full flex flex-col justify-between p-2 lg:p-4">
-      {/* ... (Modals omitted for brevity, logic unchanged) ... */}
+      {/* ... (Modals omitted, same as before) ... */}
       {showBuyBonusModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-md">
           <div className="bg-gray-900/95 border border-purple-500/50 rounded-2xl p-8 max-w-md w-full mx-4 shadow-[0_0_50px_rgba(168,85,247,0.2)]">
@@ -665,35 +671,13 @@ const SlotGame = () => {
           document.body
         )}
 
-      {createPortal(
-        <div className="fixed top-20 right-4 z-[90] lg:bottom-12 lg:right-auto lg:left-12 lg:top-auto pointer-events-none">
-          <div
-            className={`rounded-xl p-4 shadow-2xl transition-all duration-300 scale-75 lg:scale-100 origin-top-right border-2 backdrop-blur-xl ${
-              isBoughtBonusActive
-                ? "bg-orange-900/80 border-orange-500 animate-pulse"
-                : currentDisplayMultiplier > 1
-                ? "bg-blue-900/80 border-cyan-400"
-                : "bg-gray-900/80 border-gray-600"
-            }`}
-          >
-            <div className="text-center">
-              <div className="text-[10px] font-bold text-white uppercase tracking-wider mb-1">
-                MULTIPLIER
-              </div>
-              <div className="text-4xl font-black text-white drop-shadow-lg">
-                {currentDisplayMultiplier.toFixed(1)}x
-              </div>
-            </div>
-          </div>
-        </div>,
-        document.body
-      )}
-
       {/* --- RESPONSIVE LAYOUT CONTAINER --- */}
-      <div className="flex flex-col lg:flex-row items-center justify-center gap-6 lg:gap-12 px-2 lg:px-4 w-full max-w-[1600px] mx-auto mt-2 lg:mt-8">
+      {/* UPDATE: items-center -> items-start to align sidebar to top */}
+      <div className="flex flex-col lg:flex-row items-center lg:items-start justify-center gap-6 lg:gap-12 px-2 lg:px-4 w-full max-w-[1600px] mx-auto mt-2 lg:mt-8">
         {/* LEFT PANEL */}
         <div className="order-2 lg:order-1 flex flex-row lg:flex-col gap-4 text-white w-full lg:w-72 justify-between lg:justify-start">
-          <div className="flex-1 bg-gray-900/40 backdrop-blur-xl rounded-2xl p-4 lg:p-6 border border-white/10 shadow-[0_0_30px_rgba(0,0,0,0.3)] flex lg:flex-col items-center justify-between gap-4 relative overflow-hidden group">
+          {/* 1. BALANCE CARD */}
+          <div className="flex-1 lg:flex-none bg-gray-900/40 backdrop-blur-xl rounded-2xl p-4 lg:p-6 border border-white/10 shadow-[0_0_30px_rgba(0,0,0,0.3)] flex lg:flex-col items-center justify-between gap-4 relative overflow-hidden group">
             <div className="absolute -top-10 -left-10 w-32 h-32 bg-purple-500/10 rounded-full blur-3xl group-hover:bg-purple-500/20 transition-all duration-700"></div>
             <div className="text-center lg:text-left w-full relative z-10">
               <span className="text-[10px] lg:text-xs text-purple-300/70 font-bold uppercase tracking-[0.2em] mb-1 block">
@@ -713,7 +697,9 @@ const SlotGame = () => {
               </div>
             </div>
           </div>
-          <div className="hidden lg:block bg-gray-900/40 backdrop-blur-xl rounded-2xl p-4 border border-white/10 h-64 overflow-y-auto custom-scrollbar">
+
+          {/* 2. TRANSACTION HISTORY (Scrollbar Hidden) */}
+          <div className="hidden lg:block bg-gray-900/40 backdrop-blur-xl rounded-2xl p-4 border border-white/10 h-64 overflow-y-auto [&::-webkit-scrollbar]:hidden [-ms-overflow-style:'none'] [scrollbar-width:'none']">
             <h3 className="text-xs font-bold text-gray-500 uppercase tracking-widest mb-3 sticky top-0 bg-gray-900/90 py-2 backdrop-blur-md">
               Log Data
             </h3>
@@ -745,12 +731,43 @@ const SlotGame = () => {
               </div>
             )}
           </div>
+
+          {/* 3. MULTIPLIER CARD (Moved from Portal) */}
+          <div
+            className={`flex-1 lg:flex-none bg-gray-900/40 backdrop-blur-xl rounded-2xl p-4 border transition-colors duration-300 ${
+              isBoughtBonusActive
+                ? "border-orange-500/50 bg-orange-900/20"
+                : currentDisplayMultiplier > 1
+                ? "border-cyan-400/50 bg-blue-900/20"
+                : "border-white/10"
+            }`}
+          >
+            <div className="text-center">
+              <span className="text-[10px] lg:text-xs text-blue-300/70 font-bold uppercase tracking-[0.2em] mb-1 block">
+                Multiplier
+              </span>
+              <div className="text-2xl lg:text-3xl font-black text-white drop-shadow-[0_0_10px_rgba(56,189,248,0.3)]">
+                {currentDisplayMultiplier.toFixed(1)}x
+              </div>
+            </div>
+          </div>
+
+          {/* 4. TOTAL WIN INDICATOR (New) */}
+          <div className="flex-1 lg:flex-none bg-gray-900/40 backdrop-blur-xl rounded-2xl p-4 border border-white/10">
+            <div className="text-center">
+              <span className="text-[10px] lg:text-xs text-yellow-300/70 font-bold uppercase tracking-[0.2em] mb-1 block">
+                Current Win
+              </span>
+              <div className="text-2xl lg:text-3xl font-black text-transparent bg-clip-text bg-gradient-to-b from-yellow-300 to-yellow-500 drop-shadow-[0_0_10px_rgba(234,179,8,0.3)]">
+                ${totalWinAmount > 0 ? totalWinAmount.toFixed(2) : "0.00"}
+              </div>
+            </div>
+          </div>
         </div>
 
         {/* MIDDLE: THE GRID */}
         <div className="order-1 lg:order-2 relative flex-1 w-full lg:max-w-[1200px] flex flex-col items-center justify-center z-10">
-          {/* FIX 1: Changed aspect ratio from [5/4] to [4/5] to give more vertical space for 5 rows */}
-          <div className="relative w-full aspect-[4/5] lg:aspect-[5/5] max-h-[85vh] overflow-hidden rounded-3xl bg-gray-900 shadow-2xl">
+          <div className="relative w-full aspect-[4/5] lg:aspect-[5/5] max-h-[55vh] md:max-h-[65vh] lg:max-h-[85vh] overflow-hidden rounded-3xl bg-gray-900 shadow-2xl">
             <SlotGrid
               grid={grid}
               winningPositions={winningPositions}
@@ -763,10 +780,13 @@ const SlotGame = () => {
                 if (reelFinishedResolver.current)
                   reelFinishedResolver.current();
               }}
+              onGridClick={() => {
+                if (isReelSpinning) skipSignalRef.current = true;
+              }}
             />
           </div>
 
-          {/* FIX 2: Moved SKIP SEQUENCE outside of the grid container (so it sits below) */}
+          {/* SKIP BUTTON CONTAINER */}
           <div className="h-10 mt-4 flex items-center justify-center w-full">
             <AnimatePresence>
               {isReelSpinning && (

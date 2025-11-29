@@ -16,6 +16,7 @@ const REEL_STRIP = [
   "HOURGLASS",
 ];
 
+// ... (symbolVariants and StaticSlotCell remain exactly the same) ...
 const symbolVariants = {
   idle: { y: 0, scale: 1, zIndex: 1, opacity: 1 },
   chestTransform: {
@@ -39,7 +40,6 @@ const symbolVariants = {
   exit: { opacity: 0, scale: 0.4, transition: { duration: 0.2 } },
 };
 
-// 1. Memoized Static Cell
 const StaticSlotCell = memo(
   ({
     symbol,
@@ -51,7 +51,6 @@ const StaticSlotCell = memo(
     isChestTransform,
     totalScatters,
   }) => {
-    // FIX 1: Use flex-1 instead of h-[20%] to fill available space evenly
     if (!symbol) return <div className="flex-1 w-full min-h-0" />;
 
     let animState = "idle";
@@ -66,8 +65,6 @@ const StaticSlotCell = memo(
       symbol.id === "SCATTER" && !isCascading && totalScatters >= 3;
 
     return (
-      // FIX 2: Added 'flex-1 min-h-0' to allow the cell to shrink if needed
-      // ensuring 5 rows always fit perfectly without overflow.
       <div className="relative w-full flex-1 min-h-0 p-0 flex items-center justify-center">
         <AnimatePresence mode="popLayout">
           <motion.div
@@ -113,6 +110,7 @@ const StaticSlotCell = memo(
     prev.totalScatters === next.totalScatters
 );
 
+// ... (SpinningReel remains exactly the same) ...
 const SpinningReel = memo(
   ({ colIndex, initialSymbols, finalSymbols, duration, onLand }) => {
     const hasLanded = useRef(false);
@@ -193,6 +191,7 @@ const SlotGrid = ({
   chestPositions = [],
   onLastReelStop,
   totalScatters = 0,
+  onGridClick, // IMPROVEMENT: Allow parent to handle clicks (for Tap-to-Skip)
 }) => {
   const lockedGridRef = useRef([]);
   const landedReelsRef = useRef(new Set());
@@ -218,6 +217,10 @@ const SlotGrid = ({
       if (landedReelsRef.current.has(colIndex)) return;
       landedReelsRef.current.add(colIndex);
       const isLastReel = colIndex === GRID_COLS - 1;
+
+      // IMPROVEMENT: Haptics for mobile
+      if (navigator.vibrate) navigator.vibrate(10);
+
       setLandingFlashes((prev) => ({ ...prev, [colIndex]: true }));
       setTimeout(() => {
         setLandingFlashes((prev) => {
@@ -248,14 +251,21 @@ const SlotGrid = ({
     chestPositions.some(([r, c]) => r === row && c === col);
 
   return (
-    <div className="relative w-full h-full p-2">
-      <div className="absolute inset-0 bg-purple-600/10 blur-[80px] rounded-full pointer-events-none" />
+    // IMPROVEMENT: Added cursor-pointer if rolling to suggest skipping, and onClick
+    <div
+      className={`relative w-full h-full p-2 ${
+        isRolling ? "cursor-pointer" : ""
+      }`}
+      onClick={onGridClick}
+    >
+      {/* IMPROVEMENT: Reduced blur for mobile performance (blur-xl vs blur-[80px]) */}
+      <div className="absolute inset-0 bg-purple-600/10 blur-xl lg:blur-[80px] rounded-full pointer-events-none" />
+
       <div className="relative w-full h-full bg-[#0a0a12]/40 backdrop-blur-md rounded-3xl border border-white/10 shadow-2xl overflow-hidden flex flex-col ring-1 ring-purple-500/20">
         <div className="h-3 lg:h-5 w-full bg-gradient-to-b from-gray-700/80 to-gray-900/80 border-b border-black/50 relative z-20">
           <div className="absolute inset-0 bg-[url('https://grainy-gradients.vercel.app/noise.svg')] opacity-10"></div>
         </div>
 
-        {/* FIX 3: Reduced padding (lg:p-6 -> lg:p-4) to give more room to the rows */}
         <div
           className="relative flex-1 p-2 lg:p-4 grid gap-0 overflow-hidden"
           style={{ gridTemplateColumns: `repeat(${GRID_COLS}, 1fr)` }}
@@ -290,7 +300,6 @@ const SlotGrid = ({
                   )}
                 </AnimatePresence>
 
-                {/* FIX 4: Use flex-col and h-full for the static container */}
                 <div
                   className={`flex flex-col h-full w-full ${
                     isRolling ? "invisible" : "visible"
