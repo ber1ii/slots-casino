@@ -257,8 +257,6 @@ const SlotGame = () => {
         accumulatedBonusMultiplier
       );
 
-      audioManager.stopSpinLoop();
-
       const res = { data: spinResult.data };
       const initialChestTransforms = res.data.initialChestTransforms || [];
 
@@ -298,6 +296,9 @@ const SlotGame = () => {
       });
 
       const wasSkipped = await waitForAnimationOrSkip(500);
+
+      audioManager.stopSpinLoop();
+
       if (wasSkipped) {
         audioManager.stopSpinLoop();
 
@@ -337,7 +338,13 @@ const SlotGame = () => {
       if (res.data.totalWin > 0 && !isBoughtBonusActive) {
         setTotalWinAmount(res.data.totalWin);
         setShowTotalWin(true);
-        audioManager.play("bigWin");
+        
+        if(res.data.totalWin > betAmount * 100) {
+          audioManager.play("bigWin");
+        } else {
+          audioManager.play("clusterWIn");
+        }
+
         triggerConfetti();
 
         totalWinTimeoutRef.current = setTimeout(() => {
@@ -400,7 +407,8 @@ const SlotGame = () => {
       toast.error(err.response?.data?.error || "Spin failed");
       console.error("Spin error:", err);
       setIsAutoPlaying(false);
-      setIsReelSpinning(false); // Safety turn off
+      setIsReelSpinning(false);
+      audioManager.stopSpinLoop();
     } finally {
       setIsSpinning(false);
       if (!isBoughtBonusActive) {
@@ -419,7 +427,7 @@ const SlotGame = () => {
     setChestPositions(allChestPositions); // Passed to Grid, triggers 'chestHighlight' variant
 
     toast.success("🎁 CHEST APPEARED!", { duration: 2000 });
-    audioManager.play("bigWin");
+    audioManager.play("chest");
     await new Promise((resolve) => setTimeout(resolve, 1000));
 
     setChestPositions([]);
@@ -485,7 +493,7 @@ const SlotGame = () => {
       setWinningPositions(allWinningPositions);
 
       if (cascade.cascadeWin > 0) {
-        audioManager.play("clusterWin");
+        audioManager.play("cascade");
         toast.success(`💰 +$${cascade.cascadeWin.toFixed(2)}`, {
           duration: 2000,
         });

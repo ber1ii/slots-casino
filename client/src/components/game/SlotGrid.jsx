@@ -250,14 +250,15 @@ const SlotGrid = ({
   }, [isRolling, grid, scatterColumns]);
 
   const handleLand = useCallback((colIndex, setting) => {
-    if(landedReelsRef.current.has(colIndex)) return;
-
+    if (landedReelsRef.current.has(colIndex)) return;
     landedReelsRef.current.add(colIndex);
 
     if(setting.hasScatter) {
       audioManager.play("scatterLand");
     } else {
-      audioManager.play("reelStop");
+      if(colIndex === GRID_COLS - 1) {
+        audioManager.play("reelStop");
+      }
     }
 
     if(colIndex === GRID_COLS - 1 && onLastReelStop) {

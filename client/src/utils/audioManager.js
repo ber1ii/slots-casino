@@ -20,6 +20,7 @@ class AudioManager {
       coinCount: new Audio("/sounds/coinCount.mp3"),
       error: new Audio("/sounds/error.mp3"),
       buyBonus: new Audio("/sounds/buyBonus.mp3"),
+      chest: new Audio("/sounds/chest.mp3"),
     };
 
     // Loops
@@ -40,6 +41,7 @@ class AudioManager {
     this.sounds.error.volume = 0.5;
     this.sounds.buyBonus.volume = 0.6;
     this.sounds.click.volume = 0.3;
+    this.sounds.chest.volume = 0.6;
 
     this.enabled = true;
     this.currentMusic = null;
@@ -99,6 +101,9 @@ class AudioManager {
   stopSpinLoop() {
     this.sounds.reelSpin.pause();
     this.sounds.reelSpin.currentTime = 0;
+
+    this.sounds.spinStart.pause();
+    this.sounds.spinStart.currentTime = 0;
   }
 
   // Animation handlers
@@ -137,7 +142,7 @@ class AudioManager {
       sound.currentTime = 0;
     }
 
-    if(['coinCount', 'click', 'cascade'].includes(soundName)) {
+    if(['coinCount', 'click', 'cascade', 'reelStop', 'chest'].includes(soundName)) {
       const clone = sound.cloneNode();
       clone.volume = sound.volume;
       clone.play().catch(() => {});
