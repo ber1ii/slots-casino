@@ -86,8 +86,32 @@ const SlotGame = () => {
   }, []);
 
   useEffect(() => {
+    const tryPlay = () => {
+      if(!isBoughtBonusActive) {
+        audioManager.playAmbient();
+      }
+    };
+
+    const unlockAudio = () => {
+      tryPlay();
+      document.removeEventListener('click', unlockAudio);
+      document.removeEventListener('keydown', unlockAudio);
+    }
+
+    document.addEventListener('click', unlockAudio);
+    document.addEventListener('keydown', unlockAudio);
+
+    tryPlay();
+
+    return () => {
+      audioManager.stopAll();
+      document.removeEventListener('click', unlockAudio);
+      document.removeEventListener('keydown', unlockAudio);
+    };
+  }, []);
+
+  useEffect(() => {
     initializeGrid();
-    audioManager.playAmbient();
     return () => {
       if (cascadeTimeoutRef.current) clearTimeout(cascadeTimeoutRef.current);
       if (totalWinTimeoutRef.current) clearTimeout(totalWinTimeoutRef.current);
@@ -190,13 +214,16 @@ const SlotGame = () => {
   };
 
   const handleSpin = async () => {
-    audioManager.playAmbient();
+    if(!isBoughtBonusActive) {
+      audioManager.playAmbient();
+    }
 
     if (isSpinning) return;
 
     if (user.balance < betAmount && user.freeSpins === 0) {
       toast.error("Insufficient balance!");
       setIsAutoPlaying(false);
+      audioManager.play('error');
       return;
     }
 
@@ -217,7 +244,7 @@ const SlotGame = () => {
       setCurrentDisplayMultiplier(1);
     }
 
-    audioManager.playSpinStart();
+    audioManager.startSpinSequence();
 
     try {
       const startTime = Date.now();
@@ -229,6 +256,8 @@ const SlotGame = () => {
         isFirstBoughtSpin,
         accumulatedBonusMultiplier
       );
+
+      audioManager.stopSpinLoop();
 
       const res = { data: spinResult.data };
       const initialChestTransforms = res.data.initialChestTransforms || [];
@@ -270,7 +299,7 @@ const SlotGame = () => {
 
       const wasSkipped = await waitForAnimationOrSkip(500);
       if (wasSkipped) {
-        audioManager.stopSpinStart();
+        audioManager.stopSpinLoop();
 
         if(reelFinishedResolver.current) reelFinishedResolver.current();
       }
@@ -357,7 +386,7 @@ const SlotGame = () => {
           duration: 5000,
           icon: "🎰",
         });
-        audioManager.play("bigWin");
+        audioManager.playBonusAmbient();
 
         if (!isBoughtBonusActive) {
           setIsBoughtBonusActive(true);
@@ -534,6 +563,9 @@ const SlotGame = () => {
         freeSpins: res.data.totalFreeSpins,
       });
 
+      audioManager.play('buyBonus');
+      audioManager.playBonusAmbient();
+
       setIsBoughtBonusActive(true);
       setAccumulatedBonusMultiplier(1);
       setCurrentDisplayMultiplier(1);
@@ -541,7 +573,6 @@ const SlotGame = () => {
       setBonusTotalWin(0);
 
       toast.success("🎰 BONUS PURCHASED! Starting...", { duration: 3000 });
-      audioManager.play("bigWin");
       setShowBuyBonusModal(false);
     } catch (err) {
       toast.error(err.response?.data?.error || "Failed to buy bonus");

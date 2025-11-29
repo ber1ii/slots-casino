@@ -1,7 +1,7 @@
 import { GRID_COLS, GRID_ROWS, SYMBOL_SPRITES } from "../../config/gameConfig";
 import SlotSymbol from "./SlotSymbol";
 import { motion, AnimatePresence } from "framer-motion";
-import { useEffect, useRef, useMemo, memo } from "react";
+import { useEffect, useRef, useMemo, memo, useCallback } from "react";
 import audioManager from "../../utils/audioManager";
 
 const REEL_STRIP = [
@@ -114,6 +114,7 @@ const SpinningReel = memo(
     hasScatter,
     onLand,
   }) => {
+    const hasLanded = useRef(false);
     const REPEAT_COUNT = 2;
 
     const fullReel = useMemo(() => {
@@ -123,11 +124,12 @@ const SpinningReel = memo(
       const endStrip = finalSymbols?.length
         ? finalSymbols.map((s) => s?.id || REEL_STRIP[0])
         : Array(GRID_ROWS).fill(REEL_STRIP[0]);
-      // Create a deterministic strip based on column index to avoid jittery randoms on re-renders
-      const randomStrip = [...REEL_STRIP].sort(() => 0.5 - Math.random());
+      const randomStrip = [...REEL_STRIP].sort(
+        (a, b) => a.charCodeAt(0) + colIndex - b.charCodeAt(0)
+      );
       const middleChunks = Array(REPEAT_COUNT).fill(randomStrip).flat();
       return [...endStrip, ...middleChunks, ...startStrip];
-    }, [initialSymbols, finalSymbols]);
+    }, [initialSymbols, finalSymbols, colIndex]);
 
     const totalStripHeightPercent = fullReel.length * (100 / GRID_ROWS);
     const shiftRatio = (fullReel.length - GRID_ROWS) / fullReel.length;
@@ -157,7 +159,10 @@ const SpinningReel = memo(
             ease: [0.35, 0, 0, 1],
           }}
           onAnimationComplete={() => {
-            if (onLand) onLand();
+            if (onLand && !hasLanded.current) {
+              hasLanded.current = true;
+              onLand();
+            }
           }}
         >
           {fullReel.map((symbolId, i) => {
@@ -183,7 +188,6 @@ const SpinningReel = memo(
         </motion.div>
       </div>
     );
-    // FIXED COMPARISON FUNCTION
   },
   (prev, next) => {
     // 1. Standard props check
@@ -193,6 +197,8 @@ const SpinningReel = memo(
       prev.hasScatter === next.hasScatter &&
       prev.colIndex === next.colIndex;
 
+    const handlersMatch = prev.onLand === next.onLand;
+
     const prevFirstId =
       prev.finalSymbols?.[0]?.uniqueId || prev.finalSymbols?.[0]?.id;
     const nextFirstId =
@@ -200,11 +206,11 @@ const SpinningReel = memo(
 
     const anticipationChanged = prev.isAnticipation !== next.isAnticipation;
 
-    if(anticipationChanged) return false;
+    if (anticipationChanged) return false;
 
     const targetsMatch = prevFirstId === nextFirstId;
 
-    return basicPropsMatch && targetsMatch;
+    return basicPropsMatch && targetsMatch && handlersMatch;
   }
 );
 
@@ -219,6 +225,13 @@ const SlotGrid = ({
   onLastReelStop,
 }) => {
   const lockedGridRef = useRef([]);
+  const landedReelsRef = useRef(new Set());
+
+  useEffect(() => {
+    if (isRolling) {
+      landedReelsRef.current.clear();
+    }
+  }, [isRolling]);
 
   useEffect(() => {
     if (!isRolling && grid && grid.length > 0) {
@@ -226,7 +239,31 @@ const SlotGrid = ({
         row.map((cell) => ({ ...cell }))
       );
     }
-  }, [isRolling, grid]);
+
+    const scatterCount = scatterColumns.filter(Boolean).length;
+
+    if (scatterCount >= 2 && isRolling) {
+      audioManager.startAnticipation();
+    } else {
+      audioManager.stopAnticipation();
+    }
+  }, [isRolling, grid, scatterColumns]);
+
+  const handleLand = useCallback((colIndex, setting) => {
+    if(landedReelsRef.current.has(colIndex)) return;
+
+    landedReelsRef.current.add(colIndex);
+
+    if(setting.hasScatter) {
+      audioManager.play("scatterLand");
+    } else {
+      audioManager.play("reelStop");
+    }
+
+    if(colIndex === GRID_COLS - 1 && onLastReelStop) {
+      onLastReelStop();
+    }
+  }, [onLastReelStop]);
 
   const reelSettings = useMemo(() => {
     const settings = [];
@@ -310,10 +347,7 @@ const SlotGrid = ({
                     duration={setting.duration}
                     isAnticipation={setting.isAnticipation}
                     hasScatter={setting.hasScatter}
-                    onLand={() => {
-                      if (setting.hasScatter) playScatterSound();
-                      if (isLastColumn && onLastReelStop) onLastReelStop();
-                    }}
+                    onLand={() => handleLand(colIndex, setting)}
                   />
                 ) : (
                   <div className={`flex flex-col h-full`}>

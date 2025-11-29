@@ -2,14 +2,16 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import toast from "react-hot-toast";
-import api from "../services/api";
+import { authAPI } from "../services/api";
 import Header from "../components/Header";
 import PasswordStrengthMeter from "../components/PasswordStrengthMeter";
+import { PROFILE_SPRITES } from "../config/gameConfig";
 
 const Profile = () => {
   const { user, updateUser, logout } = useAuth();
   const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
+  const [changingAvatar, setChangingAvatar] = useState(false);
 
   const [passwordForm, setPasswordForm] = useState({
     oldPassword: "",
@@ -22,6 +24,21 @@ const Profile = () => {
   });
 
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+
+  const handleAvatarChange = async (key) => {
+    if (key === user?.avatar) return;
+
+    setChangingAvatar(true);
+    try {
+      const res = await authAPI.changeAvatar(key);
+      updateUser({ avatar: res.data.avatar });
+      toast.success("Identity updated");
+    } catch (err) {
+      toast.error("Failed to update avatar");
+    } finally {
+      setChangingAvatar(false);
+    }
+  };
 
   const handlePasswordChange = async (e) => {
     e.preventDefault();
@@ -38,7 +55,7 @@ const Profile = () => {
 
     setLoading(true);
     try {
-      await api.post("/auth/change-password", {
+      await authAPI.post("/auth/change-password", {
         oldPassword: passwordForm.oldPassword,
         newPassword: passwordForm.newPassword,
       });
@@ -71,7 +88,7 @@ const Profile = () => {
 
     setLoading(true);
     try {
-      const res = await api.post("/auth/change-username", {
+      const res = await authAPI.post("/auth/change-username", {
         newUsername: usernameForm.newUsername,
       });
 
@@ -87,7 +104,7 @@ const Profile = () => {
   const handleDeleteAccount = async () => {
     setLoading(true);
     try {
-      await api.delete("auth/delete-account");
+      await authAPI.delete("auth/delete-account");
       toast.success("Account deleted succesfully");
       logout();
       navigate("/register");
@@ -102,12 +119,54 @@ const Profile = () => {
       <Header />
 
       <div className="max-w-4xl mx-auto p-4 md:p-8 mt-8">
-        <h1 className="text-3xl md:text-4xl font-bold text-white mb-8">
-          Profile Settings
-        </h1>
+        <div className="flex flex-col items-center mb-10">
+          {/* Big Circular Profile Picture */}
+          <div className="relative w-32 h-32 md:w-48 md:h-48 rounded-full border-4 border-purple-500 shadow-[0_0_30px_rgba(168,85,247,0.5)] overflow-hidden mb-4 bg-black group">
+            <img
+              src={PROFILE_SPRITES[user?.avatar] || PROFILE_SPRITES.DANTE}
+              alt="Profile"
+              className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
+            />
+          </div>
+          <h1 className="text-3xl md:text-5xl font-black text-white mb-2 tracking-tight">
+            {user?.username}
+          </h1>
+          <p className="text-gray-400 mb-6 font-mono text-sm">
+            OPERATIVE ID: {user?.id?.slice(-6).toUpperCase()}
+          </p>
+
+          {/* Avatar Selector Grid */}
+          <div className="w-full max-w-2xl bg-black/40 rounded-xl border border-white/10 p-6 backdrop-blur-md">
+            <h3 className="text-gray-400 text-sm font-bold uppercase tracking-widest mb-4 text-center">
+              Select New Avatar
+            </h3>
+            <div className="flex flex-wrap justify-center gap-3">
+              {Object.entries(PROFILE_SPRITES).map(([key, src]) => (
+                <button
+                  key={key}
+                  disabled={changingAvatar}
+                  onClick={() => handleAvatarChange(key)}
+                  className={`
+                                relative w-16 h-16 md:w-20 md:h-20 rounded-full overflow-hidden border-2 transition-all duration-300
+                                ${
+                                  user?.avatar === key
+                                    ? "border-yellow-400 scale-110 shadow-[0_0_15px_rgba(250,204,21,0.6)] grayscale-0 z-10"
+                                    : "border-white/10 hover:border-purple-400 opacity-60 hover:opacity-100 grayscale hover:grayscale-0 hover:scale-105"
+                                }
+                            `}
+                >
+                  <img
+                    src={src}
+                    alt={key}
+                    className="w-full h-full object-cover"
+                  />
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
 
         <div className="space-y-6">
-          {/* Change Username */}
           <div className="card">
             <h2 className="text-2xl font-bold text-gray-800 mb-4">
               Change Username
@@ -130,7 +189,6 @@ const Profile = () => {
             </form>
           </div>
 
-          {/* Change Password */}
           <div className="card">
             <h2 className="text-2xl font-bold text-gray-800 mb-4">
               Change Password
@@ -184,7 +242,6 @@ const Profile = () => {
             </form>
           </div>
 
-          {/* Delete Account */}
           <div className="card border-2 border-red-500">
             <h2 className="text-2xl font-bold text-red-600 mb-4">
               Danger Zone

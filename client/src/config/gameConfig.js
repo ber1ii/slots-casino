@@ -22,7 +22,7 @@ export const PROFILE_SPRITES = {
   DEAN: "/sprites/dean.png",
   DEXTER: "/sprites/dexter.png",
   HEISENBERG: "/sprites/heisenberg.png",
-  NICK: "/sprites/nick.png",
+  FUENTES: "/sprites/fuentes.png",
   VERGIL: "/sprites/vergil.png",
   GOJO: "/sprites/gojo.png",
   GUTS: "/sprites/guts.png",

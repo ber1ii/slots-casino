@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { userAPI } from "../services/api";
 import Header from "../components/Header";
 import toast from "react-hot-toast";
-import { PROFILE_SPRITE } from "../config/gameConfig";
+import { PROFILE_SPRITES } from "../config/gameConfig";
 
 const Leaderboard = () => {
   const [users, setUsers] = useState([]);
@@ -75,7 +75,7 @@ const Leaderboard = () => {
 
                   <div className="w-10 h-10 md:w-12 md:h-12 rounded-full overflow-hidden border border-white/10 bg-black">
                     <img
-                      src={PROFILE_SPRITE?.DANTE}
+                      src={PROFILE_SPRITES[user.avatar] || PROFILE_SPRITES.DANTE}
                       className="w-full h-full object-cover opacity-80"
                       alt="avatar"
                     />

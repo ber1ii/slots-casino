@@ -39,7 +39,7 @@ router.get('/leaderboard', async (req, res) => {
         const leaderboard = await User.find()
             .sort({ balance: -1 })
             .limit(10)
-            .select('username balance freeSpins totalWagered biggestMultiplier');
+            .select('username balance freeSpins totalWagered biggestMultiplier avatar');
 
         res.json(leaderboard);
     } catch(error) {

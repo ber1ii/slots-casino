@@ -2,7 +2,7 @@ import { useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import { useAudio } from "../context/AudioContext";
 import audioManager from "../utils/audioManager";
-import { PROFILE_SPRITE } from "../config/gameConfig";
+import { PROFILE_SPRITES } from "../config/gameConfig";
 
 const Header = () => {
   const { user, logout } = useAuth();
@@ -87,7 +87,7 @@ const Header = () => {
             >
               <div className="w-8 h-8 md:w-10 md:h-10 rounded-full overflow-hidden border-2 border-purple-500 shadow-[0_0_10px_rgba(168,85,247,0.3)] group-hover:shadow-[0_0_15px_rgba(168,85,247,0.6)] transition-shadow">
                 <img
-                  src={PROFILE_SPRITE.DANTE}
+                  src={PROFILE_SPRITES[user?.avatar] || PROFILE_SPRITES.DANTE}
                   alt="Profile"
                   className="w-full h-full object-cover"
                 />
