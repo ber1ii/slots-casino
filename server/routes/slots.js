@@ -427,48 +427,63 @@ function findClusters(grid) {
     .map(() => Array(GRID_COLS).fill(false));
   const clusters = [];
 
+  const processCluster = (row, col, symbolId) => {
+    const cluster = bfs(grid, row, col, symbolId, visited);
+
+    if (cluster.positions.length >= MIN_CLUSTER_SIZE) {
+      clusters.push({
+        symbol: grid[row][col],
+        positions: cluster.positions,
+        size: cluster.positions.length,
+        tier: cluster.maxTier,
+      });
+    }
+  };
+
   for (let row = 0; row < GRID_ROWS; row++) {
     for (let col = 0; col < GRID_COLS; col++) {
-      if (!visited[row][col]) {
-        const symbol = grid[row][col];
+      if (visited[row][col]) continue;
 
-        if (!symbol || !symbol.id) {
-          visited[row][col] = true;
-          continue;
-        }
+      const symbol = grid[row][col];
+      if (!symbol || !symbol.id) {
+        visited[row][col] = true;
+        continue;
+      }
 
-        if (symbol.id === "CHEST_OPENED") {
-          visited[row][col] = true;
-          clusters.push({
-            symbol: symbol,
-            positions: [[row, col]],
-            size: 1,
-            tier: 1,
-          });
-          continue;
-        }
+      if (symbol.id === "CHEST_OPENED") {
+        visited[row][col] = true;
+        clusters.push({
+          symbol: symbol,
+          positions: [[row, col]],
+          size: 1,
+          tier: 1,
+        });
+        continue;
+      }
 
-        // Skip multipliers and scatters for cluster detection
-        if (
-          symbol.multiplier !== undefined ||
-          symbol.id === "SCATTER" ||
-          symbol.id === "WILD" ||
-          symbol.id === "CHEST"
-        ) {
-          visited[row][col] = true;
-          continue;
-        }
+      if (
+        symbol.multiplier !== undefined ||
+        symbol.id === "SCATTER" ||
+        symbol.id === "CHEST"
+      ) {
+        visited[row][col] = true;
+        continue;
+      }
 
-        const cluster = bfs(grid, row, col, symbol.id, visited);
+      if (symbol.id === "WILD") continue;
 
-        if (cluster.positions.length >= MIN_CLUSTER_SIZE) {
-          clusters.push({
-            symbol: symbol,
-            positions: cluster.positions,
-            size: cluster.positions.length,
-            tier: cluster.maxTier,
-          });
-        }
+      processCluster(row, col, symbol.id);
+    }
+  }
+
+  for (let row = 0; row < GRID_ROWS; row++) {
+    for (let col = 0; col < GRID_COLS; col++) {
+      if (visited[row][col]) continue;
+
+      const symbol = grid[row][col];
+
+      if (symbol && symbol.id === "WILD") {
+        processCluster(row, col, "WILD");
       }
     }
   }
@@ -675,10 +690,6 @@ function processSpin(
   const cascades = [];
   let currentBonusMultiplier = bonusMultiplier;
 
-  const scatterCount = countScatters(grid);
-  const triggeredFreeSpins =
-    scatterCount >= FREE_SPINS_TRIGGER ? FREE_SPINS_AMOUNT : 0;
-
   let cascadeCount = 0;
   let hasWins = true;
 
@@ -763,6 +774,18 @@ function processSpin(
     if (cascadeCount > 50) break;
   }
 
+  const scatterCount = countScatters(grid);
+  let triggeredFreeSpins = 0;
+
+  if (scatterCount >= FREE_SPINS_TRIGGER) {
+    triggeredFreeSpins = FREE_SPINS_AMOUNT;
+
+    if (scatterCount > FREE_SPINS_TRIGGER) {
+      const extraScatters = scatterCount - FREE_SPINS_TRIGGER;
+      triggeredFreeSpins += extraScatters * 5;
+    }
+  }
+
   return {
     finalGrid: grid,
     initialGrid,
@@ -829,21 +852,21 @@ router.post("/spin", authMiddleware, async (req, res) => {
     user.totalSpins = (user.totalSpins || 0) + 1;
     user.lastSpinAt = new Date();
 
-    if(!isFreeSpin) {
+    if (!isFreeSpin) {
       user.totalWagered = (user.totalWagered || 0) + betAmount;
     }
 
-    if(result.totalWin > 0) {
+    if (result.totalWin > 0) {
       user.totalWins = (user.totalWins || 0) + result.totalWin;
 
       user.lastWin = result.totalWin;
 
-      if(result.totalWin > (user.highestWin || 0)) {
+      if (result.totalWin > (user.highestWin || 0)) {
         user.highestWin = result.totalWin;
       }
 
       const currentSpinMultiplier = result.totalWin / betAmount;
-      if(currentSpinMultiplier > (user.biggestMultiplier || 0)) {
+      if (currentSpinMultiplier > (user.biggestMultiplier || 0)) {
         user.biggestMultiplier = currentSpinMultiplier;
       }
     }

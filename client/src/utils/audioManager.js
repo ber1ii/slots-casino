@@ -5,7 +5,6 @@ class AudioManager {
       // Music (Loops)
       ambient: new Audio("/sounds/ambient.mp3"),
       bonusAmbient: new Audio("/sounds/bonusAmbient.mp3"),
-      anticipation: new Audio("/sounds/anticipation.mp3"),
       reelSpin: new Audio("/sounds/reelSpin.mp3"),
 
       // SFX (One-shots)
@@ -26,22 +25,20 @@ class AudioManager {
     // Loops
     this.sounds.ambient.loop = true;
     this.sounds.bonusAmbient.loop = true;
-    this.sounds.anticipation.loop = true;
     this.sounds.reelSpin.loop = true;
 
     // Volume
-    this.sounds.ambient.volume = 0.3;
-    this.sounds.bonusAmbient.volume = 0.3;
-    this.sounds.anticipation.volume = 0.4;
-    this.sounds.reelSpin.volume = 0.4;
-    this.sounds.spinStart.volume = 0.5;
-    this.sounds.reelStop.volume = 0.5;
-    this.sounds.scatterLand.volume = 0.7;
-    this.sounds.bigWin.volume = 0.6;
+    this.sounds.ambient.volume = 0.2;
+    this.sounds.bonusAmbient.volume = 0.2;
+    this.sounds.reelSpin.volume = 0.2;
+    this.sounds.spinStart.volume = 0.3;
+    this.sounds.reelStop.volume = 0.3;
+    this.sounds.scatterLand.volume = 0.5;
+    this.sounds.bigWin.volume = 0.5;
     this.sounds.error.volume = 0.5;
-    this.sounds.buyBonus.volume = 0.6;
+    this.sounds.buyBonus.volume = 0.35;
     this.sounds.click.volume = 0.3;
-    this.sounds.chest.volume = 0.6;
+    this.sounds.chest.volume = 0.75;
 
     this.enabled = true;
     this.currentMusic = null;
@@ -131,7 +128,7 @@ class AudioManager {
     const now = Date.now();
     const lastTime = this.lastPlayed[soundName] || 0;
 
-    const throttleTime = soundName === 'reelStop' ? 150 : 80;
+    const throttleTime = soundName === 'reelStop' ? 50 : 80;
     if(now - lastTime < throttleTime) {
       return;
     }
@@ -142,7 +139,7 @@ class AudioManager {
       sound.currentTime = 0;
     }
 
-    if(['coinCount', 'click', 'cascade', 'reelStop', 'chest'].includes(soundName)) {
+    if(['coinCount', 'click', 'cascade', 'reelStop', 'chest', 'scatterLand'].includes(soundName)) {
       const clone = sound.cloneNode();
       clone.volume = sound.volume;
       clone.play().catch(() => {});

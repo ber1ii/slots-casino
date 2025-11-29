@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import { useAuth } from "../../context/AuthContext";
 import { slotsAPI } from "../../services/api";
 import toast from "react-hot-toast";
@@ -40,6 +40,17 @@ const getGridBeforeChests = (baseGrid, chestTransforms) => {
   return tempGrid;
 };
 
+const countScattersInGrid = (gridToCheck) => {
+  if (!gridToCheck) return 0;
+  let count = 0;
+  gridToCheck.forEach((row) => {
+    row.forEach((cell) => {
+      if (cell && cell.id === "SCATTER") count++;
+    });
+  });
+  return count;
+};
+
 const SlotGame = () => {
   const { user, updateUser } = useAuth();
   const [grid, setGrid] = useState([]);
@@ -60,8 +71,6 @@ const SlotGame = () => {
   const [accumulatedBonusMultiplier, setAccumulatedBonusMultiplier] =
     useState(1);
   const [isFirstBoughtSpin, setIsFirstBoughtSpin] = useState(false);
-  const [scatterColumns, setScatterColumns] = useState([]);
-  const [anticipationActive, setAnticipationActive] = useState(false);
 
   const [bonusTotalWin, setBonusTotalWin] = useState(0);
   const [currentDisplayMultiplier, setCurrentDisplayMultiplier] = useState(1);
@@ -75,6 +84,9 @@ const SlotGame = () => {
   const reelFinishedResolver = useRef(null);
   const keyList = Object.keys(SYMBOL_SPRITES);
 
+  // Calculate total scatters for the Highlight logic
+  const totalScatters = useMemo(() => countScattersInGrid(grid), [grid]);
+
   useEffect(() => {
     const preloadImages = () => {
       Object.values(SYMBOL_SPRITES).forEach((src) => {
@@ -87,26 +99,26 @@ const SlotGame = () => {
 
   useEffect(() => {
     const tryPlay = () => {
-      if(!isBoughtBonusActive) {
+      if (!isBoughtBonusActive) {
         audioManager.playAmbient();
       }
     };
 
     const unlockAudio = () => {
       tryPlay();
-      document.removeEventListener('click', unlockAudio);
-      document.removeEventListener('keydown', unlockAudio);
-    }
+      document.removeEventListener("click", unlockAudio);
+      document.removeEventListener("keydown", unlockAudio);
+    };
 
-    document.addEventListener('click', unlockAudio);
-    document.addEventListener('keydown', unlockAudio);
+    document.addEventListener("click", unlockAudio);
+    document.addEventListener("keydown", unlockAudio);
 
     tryPlay();
 
     return () => {
       audioManager.stopAll();
-      document.removeEventListener('click', unlockAudio);
-      document.removeEventListener('keydown', unlockAudio);
+      document.removeEventListener("click", unlockAudio);
+      document.removeEventListener("keydown", unlockAudio);
     };
   }, []);
 
@@ -160,9 +172,11 @@ const SlotGame = () => {
 
   useEffect(() => {
     const shouldAutoSpin =
-      (isAutoPlaying || isBoughtBonusActive) &&
       !isSpinning &&
-      (user?.balance >= betAmount || user?.freeSpins > 0);
+      ((isAutoPlaying &&
+        !isBoughtBonusActive &&
+        (user?.balance >= betAmount || user?.freeSpins > 0)) ||
+        (isBoughtBonusActive && user?.freeSpins > 0));
 
     if (shouldAutoSpin) {
       const timer = setTimeout(() => {
@@ -177,6 +191,7 @@ const SlotGame = () => {
     isSpinning,
     user?.freeSpins,
     user?.balance,
+    betAmount,
   ]);
 
   const initializeGrid = () => {
@@ -195,26 +210,30 @@ const SlotGame = () => {
   };
 
   const waitForAnimationOrSkip = async (minDurationMs) => {
+    let finishResolve;
+    const finishPromise = new Promise((resolve) => {
+      finishResolve = resolve;
+    });
+
+    reelFinishedResolver.current = finishResolve;
     const startTime = Date.now();
 
     while (Date.now() - startTime < minDurationMs) {
       if (skipSignalRef.current) {
         return true;
       }
-      await new Promise((resolve) => setTimeout(resolve, 50));
+      await new Promise((resolve) => setTimeout(resolve, 100));
     }
 
-    if(skipSignalRef.current) return true;
-
-    await new Promise((resolve) => {
-      reelFinishedResolver.current = resolve;
-    });
+    if (!skipSignalRef.current) {
+      await finishPromise;
+    }
 
     return false;
   };
 
   const handleSpin = async () => {
-    if(!isBoughtBonusActive) {
+    if (!isBoughtBonusActive) {
       audioManager.playAmbient();
     }
 
@@ -223,25 +242,23 @@ const SlotGame = () => {
     if (user.balance < betAmount && user.freeSpins === 0) {
       toast.error("Insufficient balance!");
       setIsAutoPlaying(false);
-      audioManager.play('error');
+      audioManager.play("error");
       return;
     }
 
     setIsSpinning(true);
     setIsReelSpinning(true);
     setWinningPositions([]);
-    setScatterColumns([]);
     skipSignalRef.current = false;
-
-    if (!isBoughtBonusActive) {
-      setShowTotalWin(false);
-    }
-
     setChestTransformPositions([]);
     setChestPositions([]);
 
     if (!isBoughtBonusActive) {
+      setShowTotalWin(false);
       setCurrentDisplayMultiplier(1);
+      setAccumulatedBonusMultiplier(1);
+    } else {
+      setCurrentDisplayMultiplier(accumulatedBonusMultiplier);
     }
 
     audioManager.startSpinSequence();
@@ -260,19 +277,14 @@ const SlotGame = () => {
       const res = { data: spinResult.data };
       const initialChestTransforms = res.data.initialChestTransforms || [];
 
-      const newScatterCols = Array(GRID_COLS).fill(false);
-      
-      if(res.data.initialGrid) {
-        res.data.initialGrid.forEach((row) => {
-          row.forEach((symbol, colIndex) => {
-            if(symbol.id === 'SCATTER') {
-              newScatterCols[colIndex] = true;
-            }
-          });
-        });
-      }
+      // Duration Logic
+      const BASE_DURATION = 2000;
+      const EXTRA_BUFFER = 500;
+      const lastColIndex = GRID_COLS - 1;
+      const COLUMN_DELAY_STEP = 300;
 
-      setScatterColumns(newScatterCols);
+      const calculatedDuration =
+        BASE_DURATION + lastColIndex * COLUMN_DELAY_STEP + EXTRA_BUFFER;
 
       let initialVisualGrid = res.data.initialGrid || res.data.finalGrid;
       setGrid(initialVisualGrid);
@@ -283,26 +295,22 @@ const SlotGame = () => {
 
       if (res.data.bonusMultiplier !== undefined) {
         setAccumulatedBonusMultiplier(res.data.bonusMultiplier);
-        if (isBoughtBonusActive) {
-          setCurrentDisplayMultiplier(res.data.bonusMultiplier);
-        }
       }
 
       const intermediateBalace = res.data.newBalance - res.data.totalWin;
 
       updateUser({
         balance: intermediateBalace,
-        freeSpins: res.data.freeSpinsRemaining,
       });
 
-      const wasSkipped = await waitForAnimationOrSkip(500);
+      const wasSkipped = await waitForAnimationOrSkip(calculatedDuration);
 
       audioManager.stopSpinLoop();
 
       if (wasSkipped) {
         audioManager.stopSpinLoop();
 
-        if(reelFinishedResolver.current) reelFinishedResolver.current();
+        if (reelFinishedResolver.current) reelFinishedResolver.current();
       }
 
       setIsReelSpinning(false);
@@ -311,15 +319,22 @@ const SlotGame = () => {
         setBonusTotalWin((prev) => prev + res.data.totalWin);
       }
 
+      let gridForcasCades = initialVisualGrid;
+
       // Handle Chests
       if (initialChestTransforms.length > 0) {
         await new Promise((resolve) => setTimeout(resolve, 200));
         await handleChestSequence(initialChestTransforms, initialVisualGrid);
+
+        gridForcasCades = getGridBeforeChests(
+          initialVisualGrid,
+          initialChestTransforms
+        );
       }
 
       // Handle Cascades
       if (res.data.cascades && res.data.cascades.length > 0) {
-        await processCascades(res.data.cascades, res.data.finalGrid);
+        await processCascades(res.data.cascades, gridForcasCades);
       }
 
       updateUser({
@@ -327,22 +342,24 @@ const SlotGame = () => {
         freeSpins: res.data.freeSpinsRemaining,
       });
 
-      addTransaction({
-        bet: betAmount,
-        win: res.data.totalWin,
-        balance: res.data.newBalance,
-        timestamp: new Date().toLocaleTimeString(),
-      });
+      if (!isBoughtBonusActive) {
+        addTransaction({
+          bet: betAmount,
+          win: res.data.totalWin,
+          balance: res.data.newBalance,
+          timestamp: new Date().toLocaleTimeString(),
+        });
+      }
 
       // Handle Win Display
       if (res.data.totalWin > 0 && !isBoughtBonusActive) {
         setTotalWinAmount(res.data.totalWin);
         setShowTotalWin(true);
-        
-        if(res.data.totalWin > betAmount * 100) {
+
+        if (res.data.totalWin > betAmount * 100) {
           audioManager.play("bigWin");
         } else {
-          audioManager.play("clusterWIn");
+          audioManager.play("clusterWin");
         }
 
         triggerConfetti();
@@ -356,14 +373,22 @@ const SlotGame = () => {
         });
       }
 
-      if (isBoughtBonusActive && res.data.freeSpinsRemaining === 0) {
+      // Wait for bonus celebration
+      if (
+        isBoughtBonusActive &&
+        res.data.freeSpinsRemaining === 0 &&
+        res.data.triggeredFreeSpins === 0
+      ) {
         await new Promise((resolve) => setTimeout(resolve, 1000));
-
-        setIsBoughtBonusActive(false);
-        setAccumulatedBonusMultiplier(1);
-        setCurrentDisplayMultiplier(1);
-
         const finalTotalWin = bonusTotalWin + res.data.totalWin;
+
+        addTransaction({
+          bet: "BONUS",
+          win: finalTotalWin,
+          balance: res.data.newBalance,
+          timestamp: new Date().toLocaleTimeString(),
+          isBonus: true,
+        });
 
         if (finalTotalWin > 0) {
           setTotalWinAmount(finalTotalWin);
@@ -371,20 +396,23 @@ const SlotGame = () => {
           audioManager.play("bigWin");
           triggerConfetti();
 
-          toast.success(
-            `🎉 BONUS COMPLETE! Total: $${finalTotalWin.toFixed(2)}`,
-            {
-              duration: 5000,
-            }
-          );
+          await new Promise((resolve) => setTimeout(resolve, 5000));
 
-          setTimeout(() => {
-            setShowTotalWin(false);
-            setBonusTotalWin(0);
-          }, 5000);
+          setShowTotalWin(false);
+          setBonusTotalWin(0);
+
+          setIsBoughtBonusActive(false);
+          setAccumulatedBonusMultiplier(1);
+          setCurrentDisplayMultiplier(1);
+          audioManager.playAmbient();
         } else {
           toast.success("Bonus round completed!");
           setBonusTotalWin(0);
+
+          setIsBoughtBonusActive(false);
+          setAccumulatedBonusMultiplier(1);
+          setCurrentDisplayMultiplier(1);
+          audioManager.playAmbient();
         }
       }
 
@@ -400,7 +428,6 @@ const SlotGame = () => {
           setAccumulatedBonusMultiplier(1);
           setCurrentDisplayMultiplier(1);
           setBonusTotalWin(0);
-          toast.success("🌟 BONUS MODE ACTIVATED!", { duration: 3000 });
         }
       }
     } catch (err) {
@@ -418,13 +445,12 @@ const SlotGame = () => {
   };
 
   const handleChestSequence = async (chestTransforms, gridBeforeChests) => {
-    // Force grid to state before chests open
     setGrid(gridBeforeChests);
     await new Promise((resolve) => setTimeout(resolve, 500));
 
     // 1. Highlight chests
     const allChestPositions = chestTransforms.map((t) => t.chestPosition);
-    setChestPositions(allChestPositions); // Passed to Grid, triggers 'chestHighlight' variant
+    setChestPositions(allChestPositions);
 
     toast.success("🎁 CHEST APPEARED!", { duration: 2000 });
     audioManager.play("chest");
@@ -439,19 +465,24 @@ const SlotGame = () => {
         (s) => s.position
       );
 
-      // Highlight original symbols
       setChestTransformPositions(originalPositions);
       toast.success("TRANSFORMING...", { duration: 1500 });
       await new Promise((resolve) => setTimeout(resolve, 1000));
 
-      // Apply transformation (Update data)
       setGrid((prevGrid) => {
         const newGrid = prevGrid.map((row) => [...row]);
+        let scatterAdded = false;
 
         transform.resultingSymbols.forEach((resulstingSym, idx) => {
           const [row, col] = transform.transformed[idx];
           newGrid[row][col] = resulstingSym;
+
+          if (resulstingSym.id === "SCATTER") scatterAdded = true;
         });
+
+        if (scatterAdded) {
+          audioManager.play("scatterLand");
+        }
 
         const [cRow, cCol] = transform.chestPosition;
         newGrid[cRow][cCol] = {
@@ -471,17 +502,37 @@ const SlotGame = () => {
 
   const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
-  const processCascades = async (cascades, finalGrid) => {
+  const processCascades = async (cascades, startingGrid) => {
+    let currentGridState = startingGrid;
+
     for (let i = 0; i < cascades.length; i++) {
       const cascade = cascades[i];
-      const isLast = i === cascades.length - 1;
       const nextGrid = cascade.nextGridState;
 
       if (!isBoughtBonusActive) {
         setCurrentDisplayMultiplier(cascade.progressiveMult);
       }
 
+      if (isBoughtBonusActive) {
+        if (cascade.bonusMultiplier) {
+          setCurrentDisplayMultiplier(cascade.bonusMultiplier);
+        }
+      } else {
+        setCurrentDisplayMultiplier(cascade.progressiveMult);
+      }
+
       setGrid(cascade.grid);
+
+      let droppedGrid = nextGrid;
+      if (cascade.chestTransforms && cascade.chestTransforms.length > 0) {
+        droppedGrid = getGridBeforeChests(nextGrid, cascade.chestTransforms);
+      }
+
+      const prevScatterCount = countScattersInGrid(cascade.grid);
+      const droppedScatterCount = countScattersInGrid(droppedGrid);
+      const shouldPlayScatterSound = droppedScatterCount > prevScatterCount;
+
+      currentGridState = cascade.grid;
       await sleep(400);
 
       const allWinningPositions = cascade.clusters.flatMap((cluster) => {
@@ -499,7 +550,7 @@ const SlotGame = () => {
         });
       }
 
-      await sleep(800);
+      await sleep(600);
 
       setIsCascading(true);
       setWinningPositions([]);
@@ -511,12 +562,33 @@ const SlotGame = () => {
 
       setGrid(gridToDisplay);
 
+      if (shouldPlayScatterSound) {
+        audioManager.play("scatterLand");
+      }
+
       await sleep(450);
 
       setIsCascading(false);
 
       if (cascade.chestTransforms && cascade.chestTransforms.length > 0) {
         await handleChestSequence(cascade.chestTransforms, gridToDisplay);
+
+        const postChestGrid = gridToDisplay.map((row) => [...row]);
+        cascade.chestTransforms.forEach((t) => {
+          const [r, c] = t.chestPosition;
+          postChestGrid[r][c] = {
+            id: "CHEST_OPENED",
+            name: "Opened Chest",
+            uniqueId: `chest_open_${r}_${c}_${Date.now()}`,
+          };
+          t.resultingSymbols.forEach((sym, idx) => {
+            const [tr, tc] = t.transformed[idx];
+            postChestGrid[tr][tc] = sym;
+          });
+        });
+        currentGridState = postChestGrid;
+      } else {
+        currentGridState = gridToDisplay;
       }
     }
     if (!isBoughtBonusActive) {
@@ -555,7 +627,6 @@ const SlotGame = () => {
     frame();
   };
 
-  // Auto-start bonus spins after buying bonus
   const handleBuyBonus = async () => {
     const bonusCost = betAmount * 100;
 
@@ -571,7 +642,7 @@ const SlotGame = () => {
         freeSpins: res.data.totalFreeSpins,
       });
 
-      audioManager.play('buyBonus');
+      audioManager.play("buyBonus");
       audioManager.playBonusAmbient();
 
       setIsBoughtBonusActive(true);
@@ -620,7 +691,7 @@ const SlotGame = () => {
   };
 
   return (
-    <div className="relative min-h-screen pb-4">
+    <div className="relative min-h-[100dvh] pb-4 flex flex-col justify-between">
       {/* Modals */}
       {showBuyBonusModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm">
@@ -659,7 +730,6 @@ const SlotGame = () => {
             <h2 className="text-3xl font-bold text-white mb-6 text-center">
               💰 Payout Table
             </h2>
-
             <div className="grid grid-cols-2 gap-6 mb-6">
               <div>
                 <h3 className="text-xl font-bold text-purple-400 mb-3">
@@ -677,7 +747,6 @@ const SlotGame = () => {
                   ))}
                 </div>
               </div>
-
               <div>
                 <h3 className="text-xl font-bold text-pink-400 mb-3">
                   Tier 2 Symbols
@@ -695,7 +764,6 @@ const SlotGame = () => {
                 </div>
               </div>
             </div>
-
             <div className="bg-purple-900/30 rounded-lg p-4 mb-6">
               <h3 className="text-lg font-bold text-yellow-400 mb-2">
                 Special Symbols
@@ -725,12 +793,10 @@ const SlotGame = () => {
                 </li>
               </ul>
             </div>
-
             <p className="text-center text-gray-400 text-sm mb-4">
               Minimum cluster size:{" "}
               <strong className="text-white">6 symbols</strong>
             </p>
-
             <button
               onClick={() => {
                 setShowPayoutTable(false);
@@ -760,11 +826,11 @@ const SlotGame = () => {
           document.body
         )}
 
-      {/* Floating Multiplier Tracker */}
+      {/* Floating Multiplier Tracker (Mobile Responsive) */}
       {createPortal(
-        <div className="fixed bottom-8 left-8 z-[90]">
+        <div className="fixed top-4 right-4 z-[90] lg:bottom-8 lg:right-auto lg:left-8 lg:top-auto pointer-events-none">
           <div
-            className={`rounded-2xl p-6 shadow-2xl transition-all duration-300 ${
+            className={`rounded-2xl p-3 lg:p-6 shadow-2xl transition-all duration-300 scale-75 lg:scale-100 origin-top-right ${
               isBoughtBonusActive
                 ? "bg-gradient-to-br from-yellow-500 to-orange-600 border-4 border-yellow-300 animate-pulse"
                 : currentDisplayMultiplier > 1
@@ -773,21 +839,12 @@ const SlotGame = () => {
             }`}
           >
             <div className="text-center">
-              <div className="text-sm font-bold text-white uppercase tracking-wider mb-2">
-                {isBoughtBonusActive
-                  ? "Bonus Multiplier"
-                  : "Cascade Multiplier"}
+              <div className="text-[10px] lg:text-sm font-bold text-white uppercase tracking-wider mb-1">
+                {isBoughtBonusActive ? "Bonus Multiplier" : "Multiplier"}
               </div>
-              <div className="text-5xl font-black text-white drop-shadow-lg">
-                {isBoughtBonusActive
-                  ? `${accumulatedBonusMultiplier.toFixed(1)}x`
-                  : `${currentDisplayMultiplier}x`}
+              <div className="text-3xl lg:text-5xl font-black text-white drop-shadow-lg">
+                {currentDisplayMultiplier.toFixed(1)}x
               </div>
-              {isBoughtBonusActive && (
-                <div className="text-xs text-yellow-100 mt-2">
-                  Multipliers ADD up!
-                </div>
-              )}
             </div>
           </div>
         </div>,
@@ -813,70 +870,49 @@ const SlotGame = () => {
           document.body
         )}
 
-      {/* Rest of UI */}
-      <div className="flex items-start justify-center gap-8 px-4 min-h-[calc(100vh-150px)]">
-        {/* LEFT: Stats */}
-        <div className="flex flex-col gap-6 text-white w-64">
-          <div className="bg-gray-900/80 backdrop-blur-md rounded-xl p-6 border border-purple-500/30">
-            <div className="flex flex-col gap-4">
-              <div>
-                <span className="text-sm text-purple-300 font-semibold uppercase tracking-wider">
-                  Balance
-                </span>
-                <div className="text-3xl font-bold text-purple-400">
-                  ${(user?.balance ?? 0).toFixed(2)}
-                </div>
+      {/* --- MAIN LAYOUT --- */}
+      <div className="flex flex-col lg:flex-row items-center justify-center gap-4 lg:gap-8 px-2 lg:px-4 w-full max-w-[1600px] mx-auto mt-2 lg:mt-10">
+        {/* LEFT PANEL */}
+        <div className="order-2 lg:order-1 flex flex-row lg:flex-col gap-2 lg:gap-6 text-white w-full lg:w-64 justify-between lg:justify-start">
+          {/* Balance / Spins */}
+          <div className="flex-1 bg-gray-900/80 backdrop-blur-md rounded-xl p-3 lg:p-6 border border-purple-500/30 flex lg:flex-col items-center justify-between gap-2">
+            <div className="text-center lg:text-left">
+              <span className="text-[10px] lg:text-sm text-purple-300 font-semibold uppercase tracking-wider block">
+                Balance
+              </span>
+              <div className="text-lg lg:text-3xl font-bold text-purple-400">
+                ${(user?.balance ?? 0).toFixed(2)}
               </div>
+            </div>
 
-              <div>
-                <span className="text-sm text-purple-300 font-semibold uppercase tracking-wider">
-                  Free Spins
-                </span>
-                <div className="text-3xl font-bold text-pink-400">
-                  {user?.freeSpins ?? 0}
-                </div>
+            <div className="w-px h-8 bg-purple-500/30 lg:hidden"></div>
+
+            <div className="text-center lg:text-left">
+              <span className="text-[10px] lg:text-sm text-purple-300 font-semibold uppercase tracking-wider block">
+                Spins
+              </span>
+              <div className="text-lg lg:text-3xl font-bold text-pink-400">
+                {user?.freeSpins ?? 0}
               </div>
-
-              {isBoughtBonusActive && (
-                <div className="bg-yellow-500/20 rounded-lg p-3 border border-yellow-400/50">
-                  <span className="text-sm text-yellow-300 font-semibold">
-                    🌟 BONUS MODE ACTIVE
-                  </span>
-                </div>
-              )}
             </div>
           </div>
 
-          <div className="bg-gray-900/80 backdrop-blur-md rounded-xl p-4 border border-purple-500/30 max-h-96 overflow-y-auto">
+          {/* Hide History on Mobile */}
+          <div className="hidden lg:block bg-gray-900/80 backdrop-blur-md rounded-xl p-4 border border-purple-500/30 max-h-96 overflow-y-auto">
             <h3 className="text-lg font-bold text-purple-300 mb-3">
               📜 Last 10 Spins
             </h3>
             {transactionHistory.length === 0 ? (
-              <p className="text-gray-500 text-sm">No spins yet</p>
+              <p className="text-gray-500 text-sm">No spins</p>
             ) : (
               <div className="space-y-2">
                 {transactionHistory.map((tx, idx) => (
                   <div
                     key={idx}
-                    className="bg-gray-800/50 rounded-lg p-2 text-xs"
+                    className="text-xs text-gray-400 border-b border-gray-700 pb-1"
                   >
-                    <div className="flex justify-between">
-                      <span className="text-gray-400">Bet:</span>
-                      <span className="text-white">${tx.bet.toFixed(2)}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-gray-400">Win:</span>
-                      <span
-                        className={
-                          tx.win > 0 ? "text-green-400" : "text-gray-500"
-                        }
-                      >
-                        ${tx.win.toFixed(2)}
-                      </span>
-                    </div>
-                    <div className="text-gray-500 text-xs mt-1">
-                      {tx.timestamp}
-                    </div>
+                    Win:{" "}
+                    <span className="text-green-400">${tx.win.toFixed(2)}</span>
                   </div>
                 ))}
               </div>
@@ -884,8 +920,8 @@ const SlotGame = () => {
           </div>
         </div>
 
-        {/* Grid + Skip Pop */}
-        <div className="relative w-[900px] h-[750px] flex flex-col items-center justify-end gap-6">
+        {/* MIDDLE: THE GRID */}
+        <div className="order-1 lg:order-2 relative w-full max-w-[500px] lg:max-w-[900px] aspect-[6/5] flex flex-col items-center justify-center">
           <SlotGrid
             grid={grid}
             winningPositions={winningPositions}
@@ -893,43 +929,46 @@ const SlotGame = () => {
             isCascading={isCascading}
             chestTransformPositions={chestTransformPositions}
             chestPositions={chestPositions}
-            scatterColumns={scatterColumns}
+            totalScatters={totalScatters}
             onLastReelStop={() => {
-              if(reelFinishedResolver.current) {
-                reelFinishedResolver.current();
-              }
+              if (reelFinishedResolver.current) reelFinishedResolver.current();
             }}
           />
 
+          {/* Skip Button (Mobile Overlay) */}
           <AnimatePresence>
             {isReelSpinning && (
               <motion.div
-                initial={{ opacity: 0, y: -10 }}
+                initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, transition: { duration: 0.2 } }}
-                className="absolute -bottom-16 z-50 whitespace-nowrap"
+                exit={{ opacity: 0 }}
+                className="absolute bottom-4 z-50 whitespace-nowrap"
+                onClick={() => {
+                  skipSignalRef.current = true;
+                }}
               >
-                <div className="bg-purple-900/80 backdrop-blur-sm border border-purple-400/50 text-purple-100 px-6 py-2 rounded-full shadow-[0_0_15px_rgba(168,85,247,0.4)] text-sm font-bold uppercase tracking-widest flex items-center gap-2">
-                  <span className="bg-white/20 px-2 py-0.5 rounded text-xs">
-                    Space
-                  </span>
-                  <span> to Skip</span>
+                <div className="bg-purple-900/90 backdrop-blur-md border border-purple-400 text-purple-100 px-6 py-3 rounded-full shadow-lg font-bold uppercase tracking-widest text-sm active:scale-95 transition-transform">
+                  TAP TO SKIP
                 </div>
               </motion.div>
             )}
           </AnimatePresence>
         </div>
 
-        {/* RIGHT: Controls */}
-        <div className="flex flex-col gap-6 w-64">
-          <div className="bg-gray-900/80 backdrop-blur-md rounded-xl p-6 border border-purple-500/30">
-            <h3 className="text-lg font-bold text-purple-300 mb-3">
-              💰 Bet Amount
-            </h3>
-            <div className="text-4xl font-bold text-purple-400 mb-4 text-center">
-              ${betAmount.toFixed(2)}
+        {/* RIGHT: CONTROLS */}
+        <div className="order-3 flex flex-col gap-3 lg:gap-6 w-full lg:w-64 pb-safe-area">
+          {/* Bet Selector */}
+          <div className="bg-gray-900/80 backdrop-blur-md rounded-xl p-3 lg:p-6 border border-purple-500/30">
+            <div className="flex justify-between items-center mb-2 lg:mb-4">
+              <h3 className="text-sm lg:text-lg font-bold text-purple-300">
+                Bet
+              </h3>
+              <div className="text-xl lg:text-4xl font-bold text-purple-400">
+                ${betAmount.toFixed(2)}
+              </div>
             </div>
-            <div className="grid grid-cols-3 gap-2 mb-3">
+
+            <div className="flex overflow-x-auto lg:grid lg:grid-cols-3 gap-2 pb-2 lg:pb-0 scrollbar-hide">
               {BET_PRESETS.map((preset) => (
                 <button
                   key={preset}
@@ -938,88 +977,66 @@ const SlotGame = () => {
                     audioManager.play("click");
                   }}
                   disabled={isSpinning}
-                  className={`px-3 py-2 rounded-lg flex items-center justify-center font-semibold transition-all ${
+                  className={`min-w-[60px] px-3 py-2 rounded-lg font-semibold transition-all text-sm ${
                     betAmount === preset
                       ? "bg-purple-600 text-white"
-                      : "bg-gray-800 text-gray-300 hover:bg-gray-700"
-                  } disabled:opacity-50`}
+                      : "bg-gray-800 text-gray-300"
+                  }`}
                 >
                   ${preset}
                 </button>
               ))}
             </div>
+          </div>
+
+          {/* MAIN ACTIONS */}
+          <div className="flex gap-2 h-16 lg:h-auto">
             <button
-              onClick={handleMaxBet}
-              disabled={isSpinning}
-              className="w-full px-4 py-2 bg-gradient-to-r from-yellow-600 to-orange-600 text-white font-bold rounded-lg hover:from-yellow-500 hover:to-orange-500 transition-all disabled:opacity-50"
+              onClick={toggleAutoplay}
+              disabled={isSpinning || isBoughtBonusActive}
+              className={`w-1/3 rounded-xl font-bold text-xs lg:text-xl border-2 flex flex-col items-center justify-center ${
+                isAutoPlaying
+                  ? "bg-red-900/50 border-red-500"
+                  : "bg-blue-900/50 border-cyan-500"
+              }`}
             >
-              MAX BET
+              <span>{isAutoPlaying ? "STOP" : "AUTO"}</span>
+            </button>
+
+            <button
+              onClick={handleSpin}
+              disabled={
+                !(
+                  (user?.balance >= betAmount || user?.freeSpins > 0) &&
+                  !isSpinning
+                )
+              }
+              className="w-2/3 bg-gradient-to-r from-indigo-600 to-purple-600 text-white font-black text-2xl lg:text-3xl rounded-xl border-b-4 border-indigo-900 shadow-lg active:border-b-0 active:translate-y-1 transition-all flex items-center justify-center"
+            >
+              SPIN
             </button>
           </div>
 
-          <button
-            onClick={handleSpin}
-            disabled={
-              !(
-                (user?.balance >= betAmount || user?.freeSpins > 0) &&
-                !isSpinning
-              )
-            }
-            className="text-2xl py-8 px-10 bg-gradient-to-r from-indigo-900 to-purple-900 text-white font-bold rounded-xl border-2 border-purple-500/40 hover:from-indigo-800 hover:to-purple-800 transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-lg hover:shadow-purple-500/50"
-          >
-            🎰 SPIN
-          </button>
-
-          <button
-            onClick={toggleAutoplay}
-            disabled={isSpinning || isBoughtBonusActive}
-            className={`text-xl py-4 px-6 font-bold rounded-xl border-2 transition-all disabled:opacity-50 shadow-lg ${
-              isAutoPlaying
-                ? "bg-gradient-to-r from-red-900 to-orange-900 border-red-500/40 hover:from-red-800 hover:to-orange-800"
-                : "bg-gradient-to-r from-blue-900 to-cyan-900 border-cyan-500/40 hover:from-blue-800 hover:to-cyan-800"
-            }`}
-          >
-            {isAutoPlaying ? `⏸️ STOP AUTO` : "▶️ AUTOPLAY"}
-          </button>
-
-          <button
-            onClick={() => {
-              setShowBuyBonusModal(true);
-              audioManager.play("click");
-            }}
-            disabled={
-              !(user?.balance >= betAmount * 100) ||
-              isSpinning ||
-              isBoughtBonusActive
-            }
-            className="text-xl py-6 px-8 bg-gradient-to-r from-purple-900 to-pink-900 text-white font-bold rounded-xl border-2 border-pink-500/40 hover:from-purple-800 hover:to-pink-800 transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-lg hover:shadow-pink-500/50"
-          >
-            💎 BUY BONUS
-            <br />
-            <span className="text-base opacity-90">
-              ${(betAmount * 100).toFixed(2)}
-            </span>
-          </button>
-
-          <button
-            onClick={() => {
-              setShowPayoutTable(true);
-              audioManager.play("click");
-            }}
-            className="text-base py-3 px-6 bg-gradient-to-r from-indigo-900 to-blue-900 text-white font-bold rounded-xl border-2 border-blue-500/40 hover:from-indigo-800 hover:to-blue-800 transition-all shadow-lg"
-          >
-            📊 PAYTABLE
-          </button>
-
-          <div className="bg-gray-900/80 backdrop-blur-md rounded-xl p-4 border border-purple-500/30 text-xs">
-            <h4 className="text-purple-300 font-bold mb-2">⌨️ Shortcuts</h4>
-            <div className="space-y-1 text-gray-400">
-              <div>SPACE/ENTER - Spin</div>
-              <div>A - Autoplay</div>
-              <div>M - Max Bet</div>
-              <div>B - Buy Bonus</div>
-              <div>↑↓ - Change Bet</div>
-            </div>
+          {/* Secondary Actions */}
+          <div className="grid grid-cols-2 gap-2">
+            <button
+              onClick={() => {
+                setShowBuyBonusModal(true);
+                audioManager.play("click");
+              }}
+              className="py-3 px-2 bg-pink-900/40 border border-pink-500/50 rounded-lg text-xs font-bold text-pink-100"
+            >
+              BUY BONUS
+            </button>
+            <button
+              onClick={() => {
+                setShowPayoutTable(true);
+                audioManager.play("click");
+              }}
+              className="py-3 px-2 bg-blue-900/40 border border-blue-500/50 rounded-lg text-xs font-bold text-blue-100"
+            >
+              PAYTABLE
+            </button>
           </div>
         </div>
       </div>

@@ -1,7 +1,8 @@
-import { useEffect, useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { motion, useMotionValue, useTransform, useSpring } from "framer-motion";
 
 const CyberpunkBackground = ({ children }) => {
+  const [isMobile, setIsMobile] = useState(false);
   const mouseX = useMotionValue(0);
   const mouseY = useMotionValue(0);
 
@@ -9,33 +10,58 @@ const CyberpunkBackground = ({ children }) => {
   const smoothX = useSpring(mouseX, { stiffness: 40, damping: 25 });
   const smoothY = useSpring(mouseY, { stiffness: 40, damping: 25 });
 
+  // Detect Mobile/Tablet to disable parallax
+  useEffect(() => {
+    const checkMobile = () => {
+      // Check if width is < 1024px OR if device has coarse pointer (touch)
+      const mobile =
+        window.innerWidth < 1024 ||
+        window.matchMedia("(pointer: coarse)").matches;
+      setIsMobile(mobile);
+    };
+
+    checkMobile();
+    window.addEventListener("resize", checkMobile);
+    return () => window.removeEventListener("resize", checkMobile);
+  }, []);
+
+  // If mobile, force 0 movement. If desktop, allow range.
   const moveStarsFarX = useTransform(
     smoothX,
     [0, window.innerWidth],
-    [-20, 20]
+    isMobile ? [0, 0] : [-20, 20]
   );
   const moveStarsFarY = useTransform(
     smoothY,
     [0, window.innerHeight],
-    [-20, 20]
+    isMobile ? [0, 0] : [-20, 20]
   );
 
   const moveStarsNearX = useTransform(
     smoothX,
     [0, window.innerWidth],
-    [-40, 40]
+    isMobile ? [0, 0] : [-40, 40]
   );
   const moveStarsNearY = useTransform(
     smoothY,
     [0, window.innerHeight],
-    [-40, 40]
+    isMobile ? [0, 0] : [-40, 40]
   );
 
-  // Grid moves opposite to mouse to create depth
-  const moveGridX = useTransform(smoothX, [0, window.innerWidth], [-30, 30]);
-  const moveGridY = useTransform(smoothY, [0, window.innerHeight], [-10, 10]);
+  const moveGridX = useTransform(
+    smoothX,
+    [0, window.innerWidth],
+    isMobile ? [0, 0] : [-30, 30]
+  );
+  const moveGridY = useTransform(
+    smoothY,
+    [0, window.innerHeight],
+    isMobile ? [0, 0] : [-10, 10]
+  );
 
   useEffect(() => {
+    if (isMobile) return; // Don't listen on mobile
+
     const handleMouseMove = (e) => {
       mouseX.set(e.clientX);
       mouseY.set(e.clientY);
@@ -45,13 +71,16 @@ const CyberpunkBackground = ({ children }) => {
     return () => {
       window.removeEventListener("mousemove", handleMouseMove);
     };
-  }, [mouseX, mouseY]);
+  }, [mouseX, mouseY, isMobile]);
 
   const farStars = useMemo(() => generateStars(100), []);
   const nearStars = useMemo(() => generateStars(50), []);
 
   return (
-    <div className="bg-[#050214] min-h-screen relative overflow-hidden font-sans selection:bg-purple-500/30">
+    // Changed min-h-screen to min-h-[100dvh] for mobile browser bars
+    <div className="bg-[#050214] min-h-[100dvh] relative overflow-hidden font-sans selection:bg-purple-500/30">
+      {/* ... (Keep existing Star and Grid Layers EXACTLY as they were) ... */}
+
       {/* --- LAYER 1: STARS --- */}
       <motion.div
         className="fixed inset-[-50px] z-0 pointer-events-none"
@@ -87,9 +116,8 @@ const CyberpunkBackground = ({ children }) => {
         ))}
       </motion.div>
 
-      {/* --- LAYER 2: HORIZON GLOW (Centered in the void) --- */}
+      {/* --- LAYER 2: HORIZON GLOW --- */}
       <div className="fixed top-[50%] left-[-50%] right-[-50%] h-[200px] -mt-[100px] z-0 pointer-events-none">
-        {/* Main purple glow */}
         <div className="w-full h-full bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-fuchsia-600/20 via-purple-900/5 to-transparent blur-[60px] transform scale-x-150" />
       </div>
 
@@ -98,23 +126,16 @@ const CyberpunkBackground = ({ children }) => {
         className="fixed inset-0 z-0 pointer-events-none"
         style={{ perspective: "1000px" }}
       >
-        {/* TOP GRID (Ceiling) */}
         <motion.div
           className="absolute top-[-30%] left-[-50%] right-[-50%] h-[80%] origin-bottom"
-          style={{
-            x: moveGridX,
-            y: moveGridY,
-            rotateX: -75,
-          }}
+          style={{ x: moveGridX, y: moveGridY, rotateX: -75 }}
         >
+          {/* Grid Content */}
           <div
             className="w-full h-full"
             style={{
               backgroundSize: "60px 60px",
-              backgroundImage: `
-                linear-gradient(to right, rgba(236, 72, 153, 0.3) 1px, transparent 1px),
-                linear-gradient(to bottom, rgba(236, 72, 153, 0.3) 1px, transparent 1px)
-              `,
+              backgroundImage: `linear-gradient(to right, rgba(236, 72, 153, 0.3) 1px, transparent 1px), linear-gradient(to bottom, rgba(236, 72, 153, 0.3) 1px, transparent 1px)`,
               maskImage:
                 "linear-gradient(to bottom, black 5%, transparent 60%)",
               WebkitMaskImage:
@@ -123,23 +144,16 @@ const CyberpunkBackground = ({ children }) => {
           />
         </motion.div>
 
-        {/* BOTTOM GRID (Floor) */}
         <motion.div
           className="absolute bottom-[-30%] left-[-50%] right-[-50%] h-[80%] origin-top"
-          style={{
-            x: moveGridX,
-            y: moveGridY,
-            rotateX: 75,
-          }}
+          style={{ x: moveGridX, y: moveGridY, rotateX: 75 }}
         >
+          {/* Grid Content */}
           <div
             className="w-full h-full"
             style={{
               backgroundSize: "60px 60px",
-              backgroundImage: `
-                linear-gradient(to right, rgba(236, 72, 153, 0.3) 1px, transparent 1px),
-                linear-gradient(to bottom, rgba(236, 72, 153, 0.3) 1px, transparent 1px)
-              `,
+              backgroundImage: `linear-gradient(to right, rgba(236, 72, 153, 0.3) 1px, transparent 1px), linear-gradient(to bottom, rgba(236, 72, 153, 0.3) 1px, transparent 1px)`,
               maskImage: "linear-gradient(to top, black 5%, transparent 60%)",
               WebkitMaskImage:
                 "linear-gradient(to top, black 5%, transparent 60%)",
@@ -148,15 +162,14 @@ const CyberpunkBackground = ({ children }) => {
         </motion.div>
       </div>
 
-      {/* --- LAYER 4: VIGNETTE --- */}
       <div className="fixed inset-0 pointer-events-none z-0 bg-[radial-gradient(circle_at_center,transparent_20%,#050214_110%)]" />
 
-      {/* --- LAYER 5: CONTENT --- */}
       <div className="relative z-10">{children}</div>
     </div>
   );
 };
 
+// ... generateStars function ...
 const generateStars = (count) => {
   return Array.from({ length: count }).map(() => ({
     width: Math.random() * 2 + 1 + "px",
