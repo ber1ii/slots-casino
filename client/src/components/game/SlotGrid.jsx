@@ -51,7 +51,8 @@ const StaticSlotCell = memo(
     isChestTransform,
     totalScatters,
   }) => {
-    if (!symbol) return <div className="h-[20%] w-full" />;
+    // FIX 1: Use flex-1 instead of h-[20%] to fill available space evenly
+    if (!symbol) return <div className="flex-1 w-full min-h-0" />;
 
     let animState = "idle";
     if (isChestTransform) animState = "chestTransform";
@@ -61,13 +62,13 @@ const StaticSlotCell = memo(
       symbol.id === "CHEST_OPENED" ? { ...symbol, id: "CHEST" } : symbol;
     const isTransformed =
       symbol.uniqueId && symbol.uniqueId.includes("transformed");
-
-    // Only highlight if it's a scatter AND we have 3 or more total on the grid
     const shouldHighlightScatter =
       symbol.id === "SCATTER" && !isCascading && totalScatters >= 3;
 
     return (
-      <div className="relative w-full h-[20%] p-0 flex items-center justify-center">
+      // FIX 2: Added 'flex-1 min-h-0' to allow the cell to shrink if needed
+      // ensuring 5 rows always fit perfectly without overflow.
+      <div className="relative w-full flex-1 min-h-0 p-0 flex items-center justify-center">
         <AnimatePresence mode="popLayout">
           <motion.div
             key={symbol.uniqueId || `${rowIndex}-${colIndex}`}
@@ -97,23 +98,19 @@ const StaticSlotCell = memo(
             />
           </motion.div>
         </AnimatePresence>
-
         {shouldHighlightScatter && (
           <div className="absolute inset-1 border-2 border-yellow-400 rounded-lg animate-pulse pointer-events-none shadow-[0_0_15px_rgba(250,204,21,0.4)]" />
         )}
       </div>
     );
   },
-  (prev, next) => {
-    return (
-      prev.symbol?.uniqueId === next.symbol?.uniqueId &&
-      prev.isWinning === next.isWinning &&
-      prev.isCascading === next.isCascading &&
-      prev.isChest === next.isChest &&
-      prev.isChestTransform === next.isChestTransform &&
-      prev.totalScatters === next.totalScatters
-    );
-  }
+  (prev, next) =>
+    prev.symbol?.uniqueId === next.symbol?.uniqueId &&
+    prev.isWinning === next.isWinning &&
+    prev.isCascading === next.isCascading &&
+    prev.isChest === next.isChest &&
+    prev.isChestTransform === next.isChestTransform &&
+    prev.totalScatters === next.totalScatters
 );
 
 const SpinningReel = memo(
@@ -136,11 +133,11 @@ const SpinningReel = memo(
     }, [initialSymbols, finalSymbols, colIndex, REPEAT_COUNT]);
 
     const totalStripHeightPercent = fullReel.length * (100 / GRID_ROWS);
-    const shiftRatio = (fullReel.length - GRID_ROWS) / fullReel.length;
-    const initialY = -1 * shiftRatio * 100;
+    const initialY =
+      -1 * ((fullReel.length - GRID_ROWS) / fullReel.length) * 100;
 
     return (
-      <div className="absolute inset-0 z-20 overflow-hidden pointer-events-none border-r border-purple-900/30 transform-gpu">
+      <div className="absolute inset-0 z-20 overflow-hidden pointer-events-none border-r border-white/5 transform-gpu">
         <motion.div
           className="flex flex-col w-full will-change-transform"
           style={{
@@ -149,10 +146,7 @@ const SpinningReel = memo(
           }}
           initial={{ y: `${initialY}%` }}
           animate={{ y: "0%" }}
-          transition={{
-            duration: duration,
-            ease: [0.35, 0, 0, 1],
-          }}
+          transition={{ duration: duration, ease: [0.35, 0, 0, 1] }}
           onAnimationComplete={() => {
             if (onLand && !hasLanded.current) {
               hasLanded.current = true;
@@ -163,7 +157,6 @@ const SpinningReel = memo(
           {fullReel.map((symbolId, i) => {
             const sprite =
               SYMBOL_SPRITES[symbolId] || SYMBOL_SPRITES["RED_GEM"];
-
             return (
               <div
                 key={i}
@@ -173,7 +166,7 @@ const SpinningReel = memo(
                 <img
                   src={sprite}
                   alt="slot-icon"
-                  className="w-[85%] h-[85%] object-contain"
+                  className="w-full h-full object-contain drop-shadow-lg"
                   loading="eager"
                   decoding="sync"
                 />
@@ -184,21 +177,11 @@ const SpinningReel = memo(
       </div>
     );
   },
-  (prev, next) => {
-    const basicPropsMatch =
-      prev.duration === next.duration && prev.colIndex === next.colIndex;
-
-    const handlersMatch = prev.onLand === next.onLand;
-
-    const prevFirstId =
-      prev.finalSymbols?.[0]?.uniqueId || prev.finalSymbols?.[0]?.id;
-    const nextFirstId =
-      next.finalSymbols?.[0]?.uniqueId || next.finalSymbols?.[0]?.id;
-
-    const targetsMatch = prevFirstId === nextFirstId;
-
-    return basicPropsMatch && targetsMatch && handlersMatch;
-  }
+  (prev, next) =>
+    prev.duration === next.duration &&
+    prev.colIndex === next.colIndex &&
+    prev.onLand === next.onLand &&
+    prev.finalSymbols?.[0]?.uniqueId === next.finalSymbols?.[0]?.uniqueId
 );
 
 const SlotGrid = ({
@@ -221,28 +204,20 @@ const SlotGrid = ({
       setLandingFlashes({});
     }
   }, [isRolling]);
-
   useEffect(() => {
-    if (!isRolling && grid && grid.length > 0) {
+    if (!isRolling && grid && grid.length > 0)
       lockedGridRef.current = grid.map((row) =>
         row.map((cell) => ({ ...cell }))
       );
-    }
   }, [isRolling, grid]);
 
-  const getReelDuration = (index) => {
-    const BASE_DURATION = 2.0;
-    const COLUMN_DELAY_STEP = 0.3;
-    return BASE_DURATION + index * COLUMN_DELAY_STEP;
-  };
+  const getReelDuration = (index) => 2.0 + index * 0.3;
 
   const handleLand = useCallback(
     (colIndex) => {
       if (landedReelsRef.current.has(colIndex)) return;
       landedReelsRef.current.add(colIndex);
-
       const isLastReel = colIndex === GRID_COLS - 1;
-
       setLandingFlashes((prev) => ({ ...prev, [colIndex]: true }));
       setTimeout(() => {
         setLandingFlashes((prev) => {
@@ -251,20 +226,12 @@ const SlotGrid = ({
           return next;
         });
       }, 300);
-
       const hasScatterInColumn = grid.some(
         (row) => row[colIndex]?.id === "SCATTER"
       );
-
-      if (hasScatterInColumn) {
-        audioManager.play("scatterLand");
-      } else {
-        audioManager.play("reelStop");
-      }
-
-      if (isLastReel && onLastReelStop) {
-        onLastReelStop();
-      }
+      if (hasScatterInColumn) audioManager.play("scatterLand");
+      else audioManager.play("reelStop");
+      if (isLastReel && onLastReelStop) onLastReelStop();
     },
     [onLastReelStop, grid]
   );
@@ -273,7 +240,6 @@ const SlotGrid = ({
     if (!targetGrid || targetGrid.length === 0) return [];
     return targetGrid.map((row) => row[colIndex]);
   };
-
   const isWinning = (row, col) =>
     winningPositions.some(([r, c]) => r === row && c === col);
   const isChestTransform = (row, col) =>
@@ -282,30 +248,34 @@ const SlotGrid = ({
     chestPositions.some(([r, c]) => r === row && c === col);
 
   return (
-    <div className="relative w-full h-full">
-      <div className="absolute inset-0 bg-gradient-to-br from-purple-900/20 via-transparent to-pink-900/20 rounded-2xl blur-xl" />
+    <div className="relative w-full h-full p-2">
+      <div className="absolute inset-0 bg-purple-600/10 blur-[80px] rounded-full pointer-events-none" />
+      <div className="relative w-full h-full bg-[#0a0a12]/40 backdrop-blur-md rounded-3xl border border-white/10 shadow-2xl overflow-hidden flex flex-col ring-1 ring-purple-500/20">
+        <div className="h-3 lg:h-5 w-full bg-gradient-to-b from-gray-700/80 to-gray-900/80 border-b border-black/50 relative z-20">
+          <div className="absolute inset-0 bg-[url('https://grainy-gradients.vercel.app/noise.svg')] opacity-10"></div>
+        </div>
 
-      <div className="relative w-full h-full rounded-2xl border-2 lg:border-4 border-purple-500/60 bg-gradient-to-br from-gray-900/90 via-purple-950/50 to-gray-900/90 shadow-2xl overflow-hidden">
-        {/* Borders */}
-        <div className="absolute top-0 left-0 w-8 h-8 lg:w-16 lg:h-16 border-t-2 border-l-2 lg:border-t-4 lg:border-l-4 border-cyan-400/60 rounded-tl-xl lg:rounded-tl-2xl z-20 pointer-events-none" />
-        <div className="absolute top-0 right-0 w-8 h-8 lg:w-16 lg:h-16 border-t-2 border-r-2 lg:border-t-4 lg:border-r-4 border-cyan-400/60 rounded-tr-xl lg:rounded-tr-2xl z-20 pointer-events-none" />
-        <div className="absolute bottom-0 left-0 w-8 h-8 lg:w-16 lg:h-16 border-b-2 border-l-2 lg:border-b-4 lg:border-l-4 border-cyan-400/60 rounded-bl-xl lg:rounded-bl-2xl z-20 pointer-events-none" />
-        <div className="absolute bottom-0 right-0 w-8 h-8 lg:w-16 lg:h-16 border-b-2 border-r-2 lg:border-b-4 lg:border-r-4 border-cyan-400/60 rounded-br-xl lg:rounded-br-2xl z-20 pointer-events-none" />
-
+        {/* FIX 3: Reduced padding (lg:p-6 -> lg:p-4) to give more room to the rows */}
         <div
-          className="relative w-full h-full p-2 lg:p-6 grid gap-1 lg:gap-3"
+          className="relative flex-1 p-2 lg:p-4 grid gap-0 overflow-hidden"
           style={{ gridTemplateColumns: `repeat(${GRID_COLS}, 1fr)` }}
         >
+          <div className="absolute inset-0 flex justify-between pointer-events-none px-2 lg:px-4 z-10">
+            {[...Array(GRID_COLS - 1)].map((_, i) => (
+              <div
+                key={i}
+                className="w-px h-full bg-gradient-to-b from-transparent via-purple-500/10 to-transparent"
+              />
+            ))}
+          </div>
           {Array.from({ length: GRID_COLS }).map((_, colIndex) => {
             const colSymbols = getColumn(grid, colIndex);
             const isFlashing = landingFlashes[colIndex];
-
             return (
               <div
                 key={`col-${colIndex}`}
-                className={`relative h-full flex flex-col bg-gray-800/20 rounded-lg overflow-hidden transition-all duration-300 border border-transparent`}
+                className="relative h-full flex flex-col border-r border-transparent last:border-r-0"
               >
-                {/* Impact flash overlay */}
                 <AnimatePresence>
                   {isFlashing && (
                     <motion.div
@@ -313,15 +283,35 @@ const SlotGrid = ({
                       animate={{ opacity: 1 }}
                       exit={{ opacity: 0 }}
                       transition={{ duration: 0.1 }}
-                      className="absolute inset-0 z-40 pointer-events-none"
+                      className="absolute inset-0 z-30 pointer-events-none bg-white/5 mix-blend-overlay"
                     >
-                      <div className="absolute inset-0 bg-gradient-to-b from-white/20 via-white/5 to-transparent mix-blend-overlay" />
-                      <div className="absolute inset-0 border-2 border-white/60 rounded-lg shadow-[inset_0_0_20px_rgba(255,255,255,0.3)]" />
+                      <div className="absolute inset-0 bg-gradient-to-b from-white/10 via-white/5 to-transparent mix-blend-overlay" />
                     </motion.div>
                   )}
                 </AnimatePresence>
 
-                {isRolling ? (
+                {/* FIX 4: Use flex-col and h-full for the static container */}
+                <div
+                  className={`flex flex-col h-full w-full ${
+                    isRolling ? "invisible" : "visible"
+                  }`}
+                >
+                  {Array.from({ length: GRID_ROWS }).map((_, rowIndex) => (
+                    <StaticSlotCell
+                      key={`${rowIndex}-${colIndex}`}
+                      rowIndex={rowIndex}
+                      colIndex={colIndex}
+                      symbol={colSymbols[rowIndex]}
+                      isCascading={isCascading}
+                      isWinning={isWinning(rowIndex, colIndex)}
+                      isChest={isChest(rowIndex, colIndex)}
+                      isChestTransform={isChestTransform(rowIndex, colIndex)}
+                      totalScatters={totalScatters}
+                    />
+                  ))}
+                </div>
+
+                {isRolling && (
                   <SpinningReel
                     key={`reel-${colIndex}-rolling`}
                     colIndex={colIndex}
@@ -330,26 +320,15 @@ const SlotGrid = ({
                     duration={getReelDuration(colIndex)}
                     onLand={() => handleLand(colIndex)}
                   />
-                ) : (
-                  <div className={`flex flex-col h-full`}>
-                    {Array.from({ length: GRID_ROWS }).map((_, rowIndex) => (
-                      <StaticSlotCell
-                        key={`${rowIndex}-${colIndex}`}
-                        rowIndex={rowIndex}
-                        colIndex={colIndex}
-                        symbol={colSymbols[rowIndex]}
-                        isCascading={isCascading}
-                        isWinning={isWinning(rowIndex, colIndex)}
-                        isChest={isChest(rowIndex, colIndex)}
-                        isChestTransform={isChestTransform(rowIndex, colIndex)}
-                        totalScatters={totalScatters}
-                      />
-                    ))}
-                  </div>
                 )}
               </div>
             );
           })}
+        </div>
+        <div className="h-6 lg:h-8 w-full bg-gradient-to-t from-gray-800/80 to-gray-900/80 border-t border-white/10 flex items-center justify-center relative z-20">
+          <div className="text-[10px] text-purple-400/60 tracking-[0.5em] font-bold uppercase animate-pulse">
+            System Ready
+          </div>
         </div>
       </div>
     </div>

@@ -31,30 +31,41 @@ const Register = () => {
   };
 
   return (
-    <div className="flex justify-center items-center min-h-screen p-4">
-      <div className="card w-full max-w-md">
-        <h1 className="text-3xl font-bold text-gray-800 mb-8 text-center">
-          Register for Chrome Rebellion
-        </h1>
-        {error && <div className="error-box">{error}</div>}
+    // REMOVED bg-[#050214]
+    <div className="flex justify-center items-center min-h-screen p-4 selection:bg-purple-500/30">
+      <div className="relative w-full max-w-md bg-gray-900/60 backdrop-blur-xl border border-white/10 p-8 rounded-3xl shadow-[0_0_50px_rgba(124,58,237,0.15)] overflow-hidden">
+        <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-purple-500 to-transparent opacity-50"></div>
 
-        <div className="mb-6">
-          <label className="block text-gray-700 font-medium mb-3 text-center">
-            Select Avatar
+        <h1 className="text-3xl font-black text-white mb-2 text-center tracking-tight">
+          INITIALIZE
+        </h1>
+        <p className="text-gray-500 text-center mb-8 font-mono text-xs uppercase tracking-widest">
+          Create New Operative Identity
+        </p>
+
+        {error && (
+          <div className="bg-red-500/10 border border-red-500/30 text-red-200 text-sm p-3 rounded-lg mb-6 text-center">
+            {error}
+          </div>
+        )}
+
+        <div className="mb-8">
+          <label className="block text-gray-400 font-bold text-xs uppercase tracking-wider mb-4 text-center">
+            Select Avatar Class
           </label>
-          <div className="grid grid-cols-4 gap-2 bg-black/10 p-3 rounded-xl border border-purple-500/20">
+          <div className="grid grid-cols-4 gap-3">
             {Object.entries(PROFILE_SPRITES).map(([key, src]) => (
               <div
                 key={key}
                 onClick={() => setSelectedAvatar(key)}
                 className={`
-                                    relative cursor-pointer rounded-full overflow-hidden border-2 transition-all duration-200 aspect-square group
-                                    ${
-                                      selectedAvatar === key
-                                        ? "border-purple-600 scale-110 shadow-[0_0_10px_rgba(147,51,234,0.5)] ring-2 ring-purple-300"
-                                        : "border-transparent hover:border-purple-400 opacity-70 hover:opacity-100 hover:scale-105"
-                                    }
-                                `}
+                    relative cursor-pointer rounded-xl overflow-hidden border-2 transition-all duration-300 aspect-square group bg-black/40
+                    ${
+                      selectedAvatar === key
+                        ? "border-purple-500 shadow-[0_0_15px_rgba(168,85,247,0.6)] ring-1 ring-purple-400 scale-105"
+                        : "border-white/5 hover:border-white/30 opacity-60 hover:opacity-100 hover:scale-105"
+                    }
+                `}
               >
                 <img
                   src={src}
@@ -66,9 +77,9 @@ const Register = () => {
           </div>
         </div>
 
-        <form onSubmit={handleSubmit} className="space-y-6">
+        <form onSubmit={handleSubmit} className="space-y-5">
           <div>
-            <label className="block text-gray-700 font-medium mb-2">
+            <label className="block text-gray-400 font-bold text-xs uppercase tracking-wider mb-2">
               Username
             </label>
             <input
@@ -77,28 +88,28 @@ const Register = () => {
               onChange={(e) => setUsername(e.target.value)}
               required
               minLength={3}
-              placeholder="coolplayer123"
-              className="input-field"
+              placeholder="OPERATIVE_NAME"
+              className="w-full bg-black/40 border border-white/10 rounded-xl py-3 px-4 text-white placeholder-gray-600 focus:outline-none focus:border-purple-500/50 focus:ring-1 focus:ring-purple-500/50 transition-all font-mono"
             />
           </div>
 
           <div>
-            <label className="block text-gray-700 font-medium mb-2">
-              Email
+            <label className="block text-gray-400 font-bold text-xs uppercase tracking-wider mb-2">
+              Email Protocol
             </label>
             <input
               type="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               required
-              placeholder="your@email.com"
-              className="input-field"
+              placeholder="secure@channel.com"
+              className="w-full bg-black/40 border border-white/10 rounded-xl py-3 px-4 text-white placeholder-gray-600 focus:outline-none focus:border-purple-500/50 focus:ring-1 focus:ring-purple-500/50 transition-all font-mono"
             />
           </div>
 
           <div>
-            <label className="block text-gray-700 font-medium mb-2">
-              Password
+            <label className="block text-gray-400 font-bold text-xs uppercase tracking-wider mb-2">
+              Passcode
             </label>
             <input
               type="password"
@@ -106,21 +117,28 @@ const Register = () => {
               onChange={(e) => setPassword(e.target.value)}
               required
               minLength={6}
-              placeholder="••••••"
-              className="input-field"
+              placeholder="••••••••"
+              className="w-full bg-black/40 border border-white/10 rounded-xl py-3 px-4 text-white placeholder-gray-600 focus:outline-none focus:border-purple-500/50 focus:ring-1 focus:ring-purple-500/50 transition-all font-mono"
             />
             <PasswordStrengthMeter password={password} />
           </div>
 
-          <button type="submit" disabled={loading} className="btn-primary">
-            {loading ? "Creating account..." : "Register"}
+          <button
+            type="submit"
+            disabled={loading}
+            className="w-full py-4 mt-4 bg-gradient-to-r from-purple-600 to-indigo-600 text-white font-bold rounded-xl shadow-lg shadow-purple-900/20 hover:shadow-purple-900/40 hover:scale-[1.02] active:scale-[0.98] transition-all uppercase tracking-widest text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {loading ? "INITIALIZING..." : "CONFIRM REGISTRATION"}
           </button>
         </form>
 
-        <p className="text-center mt-6 text-gray-600">
-          Already have an account?{" "}
-          <Link to="/login" className="text-purple-600 font-semibold">
-            Login
+        <p className="text-center mt-8 text-gray-500 text-sm">
+          Already verified?{" "}
+          <Link
+            to="/login"
+            className="text-purple-400 font-bold hover:text-purple-300 transition-colors"
+          >
+            ACCESS TERMINAL
           </Link>
         </p>
       </div>
