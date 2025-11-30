@@ -111,7 +111,20 @@ const SlotGame = () => {
     };
   }, []);
 
-  // FIX: INITIAL RANDOM GRID (Not just Blue Planets)
+  useEffect(() => {
+    const handleVisibilityChanged = () => {
+      if(document.hidden) {
+        audioManager.stopAll();
+      } else{
+        if(isBoughtBonusActive) {
+          audioManager.playBonusAmbient();
+        } else {
+          audioManager.playAmbient();
+        }
+      }
+    }
+  })
+
   useEffect(() => {
     if (grid.length === 0) {
       // Pick random symbols for visual purposes
