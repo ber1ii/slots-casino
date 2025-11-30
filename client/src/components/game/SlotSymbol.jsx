@@ -17,7 +17,7 @@ const SlotSymbol = ({ symbol, isWinning, isRolling, isCascading }) => {
   if (!symbol) return null;
 
   return (
-    <div className="relative w-full h-full flex items-center justify-center p-1">
+    <div className="relative w-full h-full flex items-center justify-center">
       <AnimatePresence mode="wait">
         <motion.img
           key={symbol.id}
