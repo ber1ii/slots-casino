@@ -113,17 +113,22 @@ const SlotGame = () => {
 
   useEffect(() => {
     const handleVisibilityChanged = () => {
-      if(document.hidden) {
+      if (document.hidden) {
         audioManager.stopAll();
-      } else{
-        if(isBoughtBonusActive) {
+      } else {
+        if (isBoughtBonusActive) {
           audioManager.playBonusAmbient();
         } else {
           audioManager.playAmbient();
         }
       }
-    }
-  })
+    };
+
+    document.addEventListener("visibilitychange", handleVisibilityChanged);
+    return () => {
+      document.removeEventListener("visibilitychange", handleVisibilityChanged);
+    };
+  }, [isBoughtBonusActive]);
 
   useEffect(() => {
     if (grid.length === 0) {
