@@ -888,7 +888,7 @@ const SlotGame = () => {
                 ${totalWinAmount.toFixed(2)}
               </div>
               <div className="text-3xl md:text-5xl font-black text-white mt-4 drop-shadow-[0_0_20px_rgba(255,255,255,0.8)] uppercase tracking-[0.2em]">
-                BIG WIN
+                TOTAL WIN
               </div>
             </div>
           </div>,
