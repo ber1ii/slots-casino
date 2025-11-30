@@ -24,7 +24,7 @@ const userSchema = new mongoose.Schema(
     },
     avatar: {
       type: String,
-      default: 'DANTE',
+      default: "DANTE",
     },
 
     // Game economy

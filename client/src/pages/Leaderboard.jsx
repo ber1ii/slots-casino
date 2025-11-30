@@ -42,7 +42,6 @@ const Leaderboard = () => {
   };
 
   return (
-    // REMOVED SOLID BG so stars show through
     <div className="min-h-screen selection:bg-purple-500/30">
       <Header />
       <div className="max-w-4xl mx-auto p-4 md:p-8 mt-4 md:mt-8">

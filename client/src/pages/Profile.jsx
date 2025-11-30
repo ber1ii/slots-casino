@@ -25,7 +25,6 @@ const Profile = () => {
 
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
-  // ... (Keep existing handlers: handleAvatarChange, handlePasswordChange, etc. exactly as they were) ...
   const handleAvatarChange = async (key) => {
     if (key === user?.avatar) return;
     setChangingAvatar(true);
@@ -104,7 +103,6 @@ const Profile = () => {
   };
 
   return (
-    // REMOVED bg-[#050214]
     <div className="min-h-screen selection:bg-purple-500/30">
       <Header />
 

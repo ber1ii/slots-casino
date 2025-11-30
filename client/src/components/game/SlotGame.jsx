@@ -15,7 +15,6 @@ import {
 import { motion, AnimatePresence } from "framer-motion";
 import { createPortal } from "react-dom";
 
-// ... (Helper functions remain the same) ...
 const getGridBeforeChests = (baseGrid, chestTransforms) => {
   const tempGrid = baseGrid.map((row) => row.map((cell) => ({ ...cell })));
   chestTransforms.forEach((transform) => {
@@ -81,7 +80,6 @@ const SlotGame = () => {
 
   if (loading) return null;
 
-  // ... (UseEffects remain the same) ...
   useEffect(() => {
     const preloadImages = () => {
       Object.values(SYMBOL_SPRITES).forEach((src) => {
@@ -226,7 +224,6 @@ const SlotGame = () => {
     setChestTransformPositions([]);
     setChestPositions([]);
 
-    // Reset visual win on new spin if not accumulating
     if (!isBoughtBonusActive) {
       setTotalWinAmount(0);
     }
@@ -321,7 +318,7 @@ const SlotGame = () => {
         totalWinTimeoutRef.current = setTimeout(() => {
           setShowTotalWin(false);
         }, 2000);
-      } 
+      }
 
       if (
         isBoughtBonusActive &&
@@ -448,8 +445,7 @@ const SlotGame = () => {
       currentGridState = cascade.grid;
       await sleep(400);
       const allWinningPositions = cascade.clusters.flatMap((cluster) => {
-        if (cluster.symbol.id === "CHEST_OPENED")
-          return [];
+        if (cluster.symbol.id === "CHEST_OPENED") return [];
         return cluster.positions;
       });
       setWinningPositions(allWinningPositions);
@@ -575,7 +571,6 @@ const SlotGame = () => {
 
   return (
     <div className="relative w-full h-full flex flex-col justify-between p-2 lg:p-4">
-      {/* ... (Modals omitted, same as before) ... */}
       {showBuyBonusModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-md">
           <div className="bg-gray-900/95 border border-purple-500/50 rounded-2xl p-8 max-w-md w-full mx-4 shadow-[0_0_50px_rgba(168,85,247,0.2)]">
@@ -672,7 +667,6 @@ const SlotGame = () => {
         )}
 
       {/* --- RESPONSIVE LAYOUT CONTAINER --- */}
-      {/* UPDATE: items-center -> items-start to align sidebar to top */}
       <div className="flex flex-col lg:flex-row items-center lg:items-start justify-center gap-6 lg:gap-12 px-2 lg:px-4 w-full max-w-[1600px] mx-auto mt-2 lg:mt-8">
         {/* LEFT PANEL */}
         <div className="order-2 lg:order-1 flex flex-row lg:flex-col gap-4 text-white w-full lg:w-72 justify-between lg:justify-start">

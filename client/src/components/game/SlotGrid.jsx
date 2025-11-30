@@ -16,7 +16,6 @@ const REEL_STRIP = [
   "HOURGLASS",
 ];
 
-// ... (symbolVariants and StaticSlotCell remain exactly the same) ...
 const symbolVariants = {
   idle: { y: 0, scale: 1, zIndex: 1, opacity: 1 },
   chestTransform: {
@@ -110,7 +109,6 @@ const StaticSlotCell = memo(
     prev.totalScatters === next.totalScatters
 );
 
-// ... (SpinningReel remains exactly the same) ...
 const SpinningReel = memo(
   ({ colIndex, initialSymbols, finalSymbols, duration, onLand }) => {
     const hasLanded = useRef(false);
@@ -191,7 +189,7 @@ const SlotGrid = ({
   chestPositions = [],
   onLastReelStop,
   totalScatters = 0,
-  onGridClick, // IMPROVEMENT: Allow parent to handle clicks (for Tap-to-Skip)
+  onGridClick,
 }) => {
   const lockedGridRef = useRef([]);
   const landedReelsRef = useRef(new Set());
@@ -218,7 +216,6 @@ const SlotGrid = ({
       landedReelsRef.current.add(colIndex);
       const isLastReel = colIndex === GRID_COLS - 1;
 
-      // IMPROVEMENT: Haptics for mobile
       if (navigator.vibrate) navigator.vibrate(10);
 
       setLandingFlashes((prev) => ({ ...prev, [colIndex]: true }));
@@ -251,14 +248,12 @@ const SlotGrid = ({
     chestPositions.some(([r, c]) => r === row && c === col);
 
   return (
-    // IMPROVEMENT: Added cursor-pointer if rolling to suggest skipping, and onClick
     <div
       className={`relative w-full h-full p-2 ${
         isRolling ? "cursor-pointer" : ""
       }`}
       onClick={onGridClick}
     >
-      {/* IMPROVEMENT: Reduced blur for mobile performance (blur-xl vs blur-[80px]) */}
       <div className="absolute inset-0 bg-purple-600/10 blur-xl lg:blur-[80px] rounded-full pointer-events-none" />
 
       <div className="relative w-full h-full bg-[#0a0a12]/40 backdrop-blur-md rounded-3xl border border-white/10 shadow-2xl overflow-hidden flex flex-col ring-1 ring-purple-500/20">

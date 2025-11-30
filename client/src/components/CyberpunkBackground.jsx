@@ -60,7 +60,7 @@ const CyberpunkBackground = ({ children }) => {
   );
 
   useEffect(() => {
-    if (isMobile) return; // Don't listen on mobile
+    if (isMobile) return;
 
     const handleMouseMove = (e) => {
       mouseX.set(e.clientX);
@@ -77,10 +77,7 @@ const CyberpunkBackground = ({ children }) => {
   const nearStars = useMemo(() => generateStars(50), []);
 
   return (
-    // Changed min-h-screen to min-h-[100dvh] for mobile browser bars
     <div className="bg-[#050214] min-h-[100dvh] relative overflow-hidden font-sans selection:bg-purple-500/30">
-      {/* ... (Keep existing Star and Grid Layers EXACTLY as they were) ... */}
-
       {/* --- LAYER 1: STARS --- */}
       <motion.div
         className="fixed inset-[-50px] z-0 pointer-events-none"

@@ -1,7 +1,7 @@
+@import url("https://fonts.googleapis.com/css2?family=Rajdhani:wght@500;600;700&family=Orbitron:wght@600;900&display=swap");
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
-@import url('https://fonts.googleapis.com/css2?family=Rajdhani:wght@500;600;700&family=Orbitron:wght@600;900&display=swap');
 
 @layer components {
   .btn-primary {
@@ -101,19 +101,27 @@
   animation-delay: 0.2s;
 }
 
-html::-webkit-scrollbar, body::-webkit-scrollbar, #root::-webkit-scrollbar {
+html::-webkit-scrollbar,
+body::-webkit-scrollbar,
+#root::-webkit-scrollbar {
   display: none;
 }
 
-html, body, #root {
+html,
+body,
+#root {
   -ms-overflow-style: none;
   scrollbar-width: none;
 }
 
 body {
-  font-family: 'Rajdhani', sans-serif;
+  font-family: "Rajdhani", sans-serif;
 }
 
-h1, h2, h3, .stat-value, button {
-  font-family: 'Orbitron', sans-serif;
+h1,
+h2,
+h3,
+.stat-value,
+button {
+  font-family: "Orbitron", sans-serif;
 }

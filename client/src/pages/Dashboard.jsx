@@ -12,7 +12,6 @@ const Dashboard = () => {
   const [btnLoading, setBtnLoading] = useState(false);
   const navigate = useNavigate();
 
-  // Loading State: Transparent background so stars show through
   if (loading) {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center">
@@ -54,7 +53,6 @@ const Dashboard = () => {
   };
 
   return (
-    // REMOVED bg-[#050214] so Cyberpunk Grid shows
     <div className="min-h-screen selection:bg-purple-500/30">
       <Header />
 

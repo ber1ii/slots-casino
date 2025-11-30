@@ -49,11 +49,11 @@ class AudioManager {
 
   toggle() {
     this.enabled = !this.enabled;
-    
-    if(!this.enabled) {
+
+    if (!this.enabled) {
       this.stopAll();
     } else {
-      if(this.currentMusic) {
+      if (this.currentMusic) {
         this.currentMusic.play().catch(() => {});
       } else {
         this.playAmbient();
@@ -63,11 +63,13 @@ class AudioManager {
   }
 
   playAmbient() {
-    if(!this.enabled) return;
-    
+    if (!this.enabled) return;
+
     this.stopMusic();
     this.currentMusic = this.sounds.ambient;
-    this.sounds.ambient.play().catch((e) => console.log("Autoplay blocked:", e));
+    this.sounds.ambient
+      .play()
+      .catch((e) => console.log("Autoplay blocked:", e));
   }
 
   playBonusAmbient() {
@@ -87,7 +89,7 @@ class AudioManager {
 
   // Spin Logic handlers
   startSpinSequence() {
-    if(!this.enabled) return;
+    if (!this.enabled) return;
 
     this.sounds.spinStart.currentTime = 0;
     this.sounds.spinStart.play().catch(() => {});
@@ -106,8 +108,8 @@ class AudioManager {
 
   // Animation handlers
   startAnticipation() {
-    if(!this.enabled) return;
-    if(this.currentMusic) this.currentMusic.volume = 0.15;
+    if (!this.enabled) return;
+    if (this.currentMusic) this.currentMusic.volume = 0.15;
 
     this.sounds.anticipation.currentTime = 0;
     this.sounds.anticipation.play().catch(() => {});
@@ -117,30 +119,39 @@ class AudioManager {
     this.sounds.anticipation.pause();
     this.sounds.anticipation.currentTime = 0;
 
-    if(this.currentMusic) this.currentMusic.volume = 0.3;
+    if (this.currentMusic) this.currentMusic.volume = 0.3;
   }
 
   // One Shot SFX Handlers
   play(soundName) {
-    if(!this.enabled) return;
+    if (!this.enabled) return;
     const sound = this.sounds[soundName];
-    if(!sound) return;
+    if (!sound) return;
 
     const now = Date.now();
     const lastTime = this.lastPlayed[soundName] || 0;
 
-    const throttleTime = soundName === 'reelStop' ? 50 : 80;
-    if(now - lastTime < throttleTime) {
+    const throttleTime = soundName === "reelStop" ? 50 : 80;
+    if (now - lastTime < throttleTime) {
       return;
     }
     this.lastPlayed[soundName] = now;
 
-    if(soundName === 'error') {
+    if (soundName === "error") {
       sound.pause();
       sound.currentTime = 0;
     }
 
-    if(['coinCount', 'click', 'cascade', 'reelStop', 'chest', 'scatterLand'].includes(soundName)) {
+    if (
+      [
+        "coinCount",
+        "click",
+        "cascade",
+        "reelStop",
+        "chest",
+        "scatterLand",
+      ].includes(soundName)
+    ) {
       const clone = sound.cloneNode();
       clone.volume = sound.volume;
       clone.play().catch(() => {});

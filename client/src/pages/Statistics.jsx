@@ -57,7 +57,6 @@ const Statistics = () => {
 
   if (loading)
     return (
-      // REMOVED SOLID BG so stars show through
       <div className="min-h-screen flex flex-col items-center justify-center gap-4">
         <div className="w-16 h-16 border-4 border-purple-500/30 border-t-purple-500 rounded-full animate-spin shadow-[0_0_20px_rgba(168,85,247,0.4)]"></div>
         <div className="text-purple-400 animate-pulse font-mono text-sm tracking-widest">
@@ -73,7 +72,6 @@ const Statistics = () => {
       : "0.0";
 
   return (
-    // REMOVED SOLID BG
     <div className="min-h-screen selection:bg-purple-500/30">
       <Header />
       <div className="max-w-[1200px] mx-auto p-4 md:p-8 mt-4 md:mt-8">

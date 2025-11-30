@@ -1,6 +1,7 @@
 const express = require("express");
 const User = require("../models/User");
 const authMiddleware = require("../middleware/auth");
+const { body, validationResult } = require("express-validator");
 
 const router = express.Router();
 
@@ -799,125 +800,154 @@ function processSpin(
   };
 }
 
-// Spin endpoint
-router.post("/spin", authMiddleware, async (req, res) => {
-  try {
-    const { betAmount, isBoughtBonusSpin, isFirstBoughtSpin, bonusMultiplier } =
-      req.body;
-
-    if (!betAmount || betAmount <= 0) {
-      return res.status(400).json({ error: "Invalid bet amount" });
-    }
-
-    if (betAmount < 0.2 || betAmount > 100) {
-      return res.status(400).json({ error: "Bet must be between 0.2 and 100" });
-    }
-
-    const user = await User.findById(req.userId);
-
-    // Check if using free spin
-    const isFreeSpin = user.freeSpins > 0;
-
-    if (!isFreeSpin && user.balance < betAmount) {
-      return res.status(400).json({ error: "Insufficient balance" });
-    }
-
-    // Deduct bet or free spin
-    if (isFreeSpin) {
-      user.freeSpins -= 1;
-    } else {
-      user.balance -= betAmount;
-    }
-
-    const isBoughtBonus = isBoughtBonusSpin === true;
-    const guaranteeWin = isFirstBoughtSpin === true;
-    const currentBonusMultiplier = bonusMultiplier || 1;
-
-    // Process spin
-    const result = processSpin(
-      betAmount,
-      isBoughtBonus,
-      guaranteeWin,
-      currentBonusMultiplier
-    );
-
-    // Add winnings
-    user.balance += result.totalWin;
-
-    // Add free spins if triggered
-    if (result.triggeredFreeSpins > 0) {
-      user.freeSpins += result.triggeredFreeSpins;
-    }
-
-    user.totalSpins = (user.totalSpins || 0) + 1;
-    user.lastSpinAt = new Date();
-
-    if (!isFreeSpin) {
-      user.totalWagered = (user.totalWagered || 0) + betAmount;
-    }
-
-    if (result.totalWin > 0) {
-      user.totalWins = (user.totalWins || 0) + result.totalWin;
-
-      user.lastWin = result.totalWin;
-
-      if (result.totalWin > (user.highestWin || 0)) {
-        user.highestWin = result.totalWin;
-      }
-
-      const currentSpinMultiplier = result.totalWin / betAmount;
-      if (currentSpinMultiplier > (user.biggestMultiplier || 0)) {
-        user.biggestMultiplier = currentSpinMultiplier;
-      }
-    }
-
-    await user.save();
-
-    res.json({
-      ...result,
-      newBalance: user.balance,
-      freeSpinsRemaining: user.freeSpins,
-      wasFreeSpin: isFreeSpin,
+const validate = (req, res, next) => {
+  const errors = validationResult(req);
+  if (!errors.isEmpty()) {
+    return res.status(400).json({
+      error: "Validation failed",
+      details: errors.array().map((e) => e.msg),
     });
-  } catch (error) {
-    res.status(500).json({ error: error.message });
   }
-});
+  next();
+};
+
+// Spin endpoint
+router.post(
+  "/spin",
+  authMiddleware,
+  [
+    body("betAmount")
+      .isFloat({ min: 0.2, max: 100 })
+      .withMessage("Bet must be between 0.20 and 100.00"),
+    body("isBoughtBonusSpin").optional().isBoolean(),
+    body("isFirstBoughtSpin").optional().isBoolean(),
+    body("bonusMultiplier").optional().isFloat({ min: 1 }),
+  ],
+  validate,
+  async (req, res) => {
+    try {
+      const {
+        betAmount,
+        isBoughtBonusSpin,
+        isFirstBoughtSpin,
+        bonusMultiplier,
+      } = req.body;
+      const user = await User.findById(req.userId);
+      if (!user) return res.status(404).json({ error: "User not found" });
+
+      // Check if using free spin
+      const isFreeSpin = user.freeSpins > 0;
+
+      if (!isFreeSpin && user.balance < betAmount) {
+        return res.status(400).json({ error: "Insufficient balance" });
+      }
+
+      // Deduct bet or free spin
+      if (isFreeSpin) {
+        user.freeSpins -= 1;
+      } else {
+        user.balance -= betAmount;
+      }
+
+      const isBoughtBonus = isBoughtBonusSpin === true;
+      const guaranteeWin = isFirstBoughtSpin === true;
+      const currentBonusMultiplier = bonusMultiplier || 1;
+
+      // Process spin
+      const result = processSpin(
+        parseFloat(betAmount),
+        isBoughtBonus,
+        guaranteeWin,
+        parseFloat(currentBonusMultiplier)
+      );
+
+      // Add winnings
+      user.balance += result.totalWin;
+
+      // Add free spins if triggered
+      if (result.triggeredFreeSpins > 0) {
+        user.freeSpins += result.triggeredFreeSpins;
+      }
+
+      user.totalSpins = (user.totalSpins || 0) + 1;
+      user.lastSpinAt = new Date();
+
+      if (!isFreeSpin) {
+        user.totalWagered = (user.totalWagered || 0) + betAmount;
+      }
+
+      if (result.totalWin > 0) {
+        user.totalWins = (user.totalWins || 0) + result.totalWin;
+
+        user.lastWin = result.totalWin;
+
+        if (result.totalWin > (user.highestWin || 0)) {
+          user.highestWin = result.totalWin;
+        }
+
+        const currentSpinMultiplier = result.totalWin / betAmount;
+        if (currentSpinMultiplier > (user.biggestMultiplier || 0)) {
+          user.biggestMultiplier = currentSpinMultiplier;
+        }
+      }
+
+      await user.save();
+
+      res.json({
+        ...result,
+        newBalance: user.balance,
+        freeSpinsRemaining: user.freeSpins,
+        wasFreeSpin: isFreeSpin,
+      });
+    } catch (error) {
+      console.error("Spin error:", error);
+      res.status(500).json({ error: "Interval server error" });
+    }
+  }
+);
 
 // Buy bonus endpoint
-router.post("/buy-bonus", authMiddleware, async (req, res) => {
-  try {
-    const { betAmount } = req.body;
+router.post(
+  "/buy-bonus",
+  authMiddleware,
+  [
+    body("betAmount")
+      .isFloat({ min: 0.2, max: 100 })
+      .withMessage("Bet must be between 0.20 and 100.0"),
+  ],
+  validate,
+  async (req, res) => {
+    try {
+      const { betAmount } = req.body;
+      const cost = betAmount * BUY_BONUS_COST;
 
-    if (!betAmount || betAmount <= 0) {
-      return res.status(400).json({ error: "Invalid bet amount" });
-    }
+      const user = await User.findById(req.userId);
+      if (!user) return res.status(404).json({ error: "User not found" });
 
-    const cost = betAmount * BUY_BONUS_COST;
-    const user = await User.findById(req.userId);
+      if (user.balance < cost) {
+        return res.status(400).json({
+          error: `Insufficient balance. Need ${cost} to buy bonus`,
+        });
+      }
 
-    if (user.balance < cost) {
-      return res.status(400).json({
-        error: `Insufficient balance. Need ${cost} to buy bonus`,
+      user.balance -= cost;
+      user.totalWagered = (user.totalWagered || 0) + cost;
+      user.freeSpins += FREE_SPINS_AMOUNT;
+      await user.save();
+
+      res.json({
+        success: true,
+        freeSpinsAdded: FREE_SPINS_AMOUNT,
+        cost,
+        newBalance: user.balance,
+        totalFreeSpins: user.freeSpins,
+        isBoughtBonus: true,
       });
+    } catch (error) {
+      console.error("Buy bonus error:", error);
+      res.status(500).json({ error: "Internal server error" });
     }
-
-    user.balance -= cost;
-    user.totalWagered = (user.totalWagered || 0) + cost;
-    user.freeSpins += FREE_SPINS_AMOUNT;
-    await user.save();
-
-    res.json({
-      success: true,
-      freeSpinsAdded: FREE_SPINS_AMOUNT,
-      cost,
-      newBalance: user.balance,
-      totalFreeSpins: user.freeSpins,
-      isBoughtBonus: true,
-    });
-  } catch (error) {
-    res.status(500).json({ error: error.message });
   }
-});
+);
 
 module.exports = router;

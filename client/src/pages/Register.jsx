@@ -31,7 +31,6 @@ const Register = () => {
   };
 
   return (
-    // REMOVED bg-[#050214]
     <div className="flex justify-center items-center min-h-screen p-4 selection:bg-purple-500/30">
       <div className="relative w-full max-w-md bg-gray-900/60 backdrop-blur-xl border border-white/10 p-8 rounded-3xl shadow-[0_0_50px_rgba(124,58,237,0.15)] overflow-hidden">
         <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-purple-500 to-transparent opacity-50"></div>

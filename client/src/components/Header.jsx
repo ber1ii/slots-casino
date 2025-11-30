@@ -36,7 +36,7 @@ const Header = () => {
             className="flex items-center gap-3 cursor-pointer group"
           >
             <div className="w-8 h-8 md:w-10 md:h-10 bg-gradient-to-br from-purple-600 to-blue-600 rounded-lg flex items-center justify-center shadow-[0_0_15px_rgba(124,58,237,0.5)] group-hover:shadow-[0_0_25px_rgba(124,58,237,0.8)] transition-all">
-                <span className="text-xl md:text-2xl">逆</span>
+              <span className="text-xl md:text-2xl">逆</span>
             </div>
             <h1 className="text-xl md:text-3xl font-black text-transparent bg-clip-text bg-gradient-to-r from-purple-400 to-cyan-400 group-hover:scale-105 transition-transform duration-300 tracking-tighter drop-shadow-[0_0_5px_rgba(168,85,247,0.5)]">
               CHROME_REBELLION
