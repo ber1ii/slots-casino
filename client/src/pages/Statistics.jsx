@@ -24,7 +24,7 @@ const StatCard = ({ label, value, subValue, colorClass, delay, icon }) => (
         {label}
       </h3>
       <p
-        className={`text-3xl md:text-4xl font-black ${colorClass} drop-shadow-md tracking-tight`}
+        className={`text-3xl md:text-4xl font-black ${colorClass} drop-shadow-md tracking-tight break-all`}
       >
         {value}
       </p>
@@ -65,7 +65,6 @@ const Statistics = () => {
       </div>
     );
 
-  // Return to player
   const rtp =
     stats.totalWagered > 0
       ? ((stats.totalWins / stats.totalWagered) * 100).toFixed(1)
@@ -92,7 +91,6 @@ const Statistics = () => {
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6 mb-8">
-          {/* Row 1: Money Stats */}
           <StatCard
             label="Net Balance"
             value={`$${stats?.balance?.toFixed(2)}`}
@@ -126,7 +124,6 @@ const Statistics = () => {
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-6">
-          {/* Row 2: Gameplay Stats */}
           <div className="bg-gray-900/60 border border-purple-500/20 p-6 md:p-8 rounded-2xl backdrop-blur-md col-span-1 md:col-span-2 relative overflow-hidden">
             <div className="absolute top-0 right-0 w-64 h-64 bg-purple-600/10 blur-[80px] rounded-full pointer-events-none"></div>
 
@@ -134,28 +131,29 @@ const Statistics = () => {
               <span className="w-1 h-6 bg-purple-500 rounded-full shadow-[0_0_10px_rgba(168,85,247,0.5)]" />
               SESSION DATA
             </h2>
-            <div className="grid grid-cols-3 gap-8 relative z-10">
-              <div className="group">
+
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-6 sm:gap-8 relative z-10">
+              <div className="group bg-white/5 p-4 rounded-xl sm:bg-transparent sm:p-0">
                 <div className="text-gray-500 text-[10px] font-bold uppercase tracking-widest mb-1 group-hover:text-purple-400 transition-colors">
                   Total Spins
                 </div>
-                <div className="text-3xl font-mono text-white group-hover:drop-shadow-[0_0_8px_rgba(255,255,255,0.3)] transition-all">
+                <div className="text-2xl sm:text-3xl font-mono text-white group-hover:drop-shadow-[0_0_8px_rgba(255,255,255,0.3)] transition-all">
                   {stats?.totalSpins}
                 </div>
               </div>
-              <div className="group">
+              <div className="group bg-white/5 p-4 rounded-xl sm:bg-transparent sm:p-0">
                 <div className="text-gray-500 text-[10px] font-bold uppercase tracking-widest mb-1 group-hover:text-pink-400 transition-colors">
                   Max Multiplier
                 </div>
-                <div className="text-3xl font-mono text-pink-400 group-hover:drop-shadow-[0_0_8px_rgba(244,114,182,0.5)] transition-all">
+                <div className="text-2xl sm:text-3xl font-mono text-pink-400 group-hover:drop-shadow-[0_0_8px_rgba(244,114,182,0.5)] transition-all break-all">
                   {stats?.biggestMultiplier}x
                 </div>
               </div>
-              <div className="group">
+              <div className="group bg-white/5 p-4 rounded-xl sm:bg-transparent sm:p-0">
                 <div className="text-gray-500 text-[10px] font-bold uppercase tracking-widest mb-1 group-hover:text-cyan-400 transition-colors">
                   Free Spins
                 </div>
-                <div className="text-3xl font-mono text-cyan-400 group-hover:drop-shadow-[0_0_8px_rgba(34,211,238,0.5)] transition-all">
+                <div className="text-2xl sm:text-3xl font-mono text-cyan-400 group-hover:drop-shadow-[0_0_8px_rgba(34,211,238,0.5)] transition-all">
                   {stats?.freeSpins}
                 </div>
               </div>

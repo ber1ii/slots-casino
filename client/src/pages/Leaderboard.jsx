@@ -73,9 +73,9 @@ const Leaderboard = () => {
                   index
                 )}`}
               >
-                <div className="flex items-center gap-4 md:gap-8">
+                <div className="flex items-center gap-3 md:gap-8 min-w-0">
                   <div
-                    className={`w-8 md:w-12 flex justify-center text-2xl md:text-3xl font-black ${
+                    className={`w-8 md:w-12 flex justify-center text-xl md:text-3xl font-black shrink-0 ${
                       index < 3 ? "scale-125" : ""
                     }`}
                   >
@@ -84,15 +84,15 @@ const Leaderboard = () => {
 
                   <div
                     className={`
-                    relative rounded-full overflow-hidden border-2 bg-black
+                    relative rounded-full overflow-hidden border-2 bg-black shrink-0
                     ${
                       index === 0
-                        ? "w-14 h-14 md:w-16 md:h-16 border-yellow-500 shadow-[0_0_15px_rgba(234,179,8,0.4)]"
+                        ? "w-12 h-12 md:w-16 md:h-16 border-yellow-500 shadow-[0_0_15px_rgba(234,179,8,0.4)]"
                         : index === 1
-                        ? "w-12 h-12 md:w-14 md:h-14 border-gray-400"
+                        ? "w-10 h-10 md:w-14 md:h-14 border-gray-400"
                         : index === 2
-                        ? "w-12 h-12 md:w-14 md:h-14 border-orange-500"
-                        : "w-10 h-10 md:w-12 md:h-12 border-white/10 opacity-70"
+                        ? "w-10 h-10 md:w-14 md:h-14 border-orange-500"
+                        : "w-8 h-8 md:w-12 md:h-12 border-white/10 opacity-70"
                     }
                   `}
                   >
@@ -105,30 +105,30 @@ const Leaderboard = () => {
                     />
                   </div>
 
-                  <div>
+                  <div className="min-w-0">
                     <div
-                      className={`font-bold tracking-wide text-white ${
+                      className={`font-bold tracking-wide text-white truncate ${
                         index === 0
-                          ? "text-xl md:text-2xl"
-                          : "text-lg md:text-xl"
+                          ? "text-lg md:text-2xl"
+                          : "text-base md:text-xl"
                       }`}
                     >
                       {user.username}
                     </div>
                     {index === 0 && (
-                      <div className="text-[10px] text-yellow-400 font-bold uppercase tracking-[0.2em] mt-1 animate-pulse">
+                      <div className="text-[9px] md:text-[10px] text-yellow-400 font-bold uppercase tracking-[0.2em] mt-1 animate-pulse hidden sm:block">
                         Current Champion
                       </div>
                     )}
                   </div>
                 </div>
 
-                <div className="text-right">
+                <div className="text-right shrink-0 pl-2">
                   <div
                     className={`font-mono font-bold ${
                       index === 0
-                        ? "text-2xl md:text-3xl text-green-400"
-                        : "text-xl md:text-2xl text-green-500/80"
+                        ? "text-lg sm:text-2xl md:text-3xl text-green-400"
+                        : "text-base sm:text-xl md:text-2xl text-green-500/80"
                     } drop-shadow-md`}
                   >
                     ${user.balance.toFixed(2)}

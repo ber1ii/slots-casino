@@ -576,8 +576,7 @@ const SlotGame = () => {
 
   // --- RENDER ---
   return (
-    <div className="w-full h-[calc(100dvh-80px)] lg:min-h-screen lg:h-auto flex flex-col lg:flex-row items-center lg:items-start justify-start lg:justify-center gap-4 lg:gap-12 px-2 lg:px-4 pt-12 lg:pt-0 max-w-[1600px] mx-auto lg:mt-8 overflow-hidden">
-      
+    <div className="w-full h-[calc(100dvh-80px)] lg:min-h-screen lg:h-auto flex flex-col lg:flex-row items-center lg:items-start justify-start lg:justify-center gap-4 lg:gap-12 px-2 lg:px-4 pt-12 lg:pt-0 max-w-[1600px] mx-auto lg:mt-8 overflow-y-auto lg:overflow-hidden pb-8 lg:pb-0 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:'none'] [scrollbar-width:'none']">
       {/* DESKTOP SIDEBAR */}
       <div className="hidden lg:flex order-2 lg:order-1 flex-col gap-4 text-white w-72 justify-start h-[85vh]">
         {/* Balance */}
@@ -667,6 +666,7 @@ const SlotGame = () => {
 
       {/* MIDDLE: THE GRID */}
       <div className="order-1 lg:order-2 relative w-full lg:max-w-[1200px] flex-none lg:flex-1 flex flex-col items-center justify-center z-10 py-0 lg:py-1">
+        {/* GRID CONTAINER */}
         <div className="relative w-full max-w-[98vw] lg:max-w-none aspect-[5/6] lg:aspect-square max-h-[70vh] lg:max-h-[85vh] overflow-hidden rounded-2xl lg:rounded-3xl bg-gray-900 shadow-2xl flex flex-col border border-white/5">
           <SlotGrid
             grid={grid}
@@ -692,6 +692,7 @@ const SlotGame = () => {
               initial={{ opacity: 0, height: 0 }}
               animate={{ opacity: 1, height: "auto" }}
               exit={{ opacity: 0, height: 0 }}
+              // FIX: Kept 'hidden lg:flex' to ensure this doesn't clutter mobile
               className="w-full hidden lg:flex justify-center mt-2 lg:mt-6 overflow-hidden shrink-0"
             >
               <button
@@ -709,17 +710,15 @@ const SlotGame = () => {
       </div>
 
       {/* BOTTOM CONTROLS */}
-      {/* Reduced margins to keep it tight, but the parent 'gap-4' now handles the spacing. */}
       <div className="order-3 flex flex-col gap-1 lg:gap-6 w-full lg:w-72 shrink-0 pb-1 lg:pb-0 z-30 lg:mt-8 mt-0">
-        
-        {/* MOBILE WIN TRACKER (Preserved) */}
+        {/* MOBILE WIN TRACKER */}
         <div className="lg:hidden flex items-center justify-between bg-gray-900/80 backdrop-blur-xl border border-yellow-500/20 rounded-xl px-4 py-2 shadow-lg mb-1">
-           <span className="text-[10px] font-bold text-yellow-500/80 uppercase tracking-widest">
-             Win
-           </span>
-           <div className="text-xl font-black text-transparent bg-clip-text bg-gradient-to-b from-yellow-300 to-yellow-600 drop-shadow-sm">
-             ${totalWinAmount > 0 ? totalWinAmount.toFixed(2) : "0.00"}
-           </div>
+          <span className="text-[10px] font-bold text-yellow-500/80 uppercase tracking-widest">
+            Win
+          </span>
+          <div className="text-xl font-black text-transparent bg-clip-text bg-gradient-to-b from-yellow-300 to-yellow-600 drop-shadow-sm">
+            ${totalWinAmount > 0 ? totalWinAmount.toFixed(2) : "0.00"}
+          </div>
         </div>
 
         <div className="bg-gray-900/60 lg:bg-gray-900/40 backdrop-blur-xl rounded-xl p-2 lg:p-5 border border-white/10">
@@ -800,7 +799,7 @@ const SlotGame = () => {
         </div>
       </div>
 
-      {/* --- MODALS & PORTALS --- */}
+      {/* --- MODALS & PORTALS */}
       {showBuyBonusModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-md">
           <div className="bg-gray-900/95 border border-purple-500/50 rounded-2xl p-8 max-w-md w-full mx-4 shadow-[0_0_50px_rgba(168,85,247,0.2)]">
@@ -889,7 +888,7 @@ const SlotGame = () => {
                 ${totalWinAmount.toFixed(2)}
               </div>
               <div className="text-3xl md:text-5xl font-black text-white mt-4 drop-shadow-[0_0_20px_rgba(255,255,255,0.8)] uppercase tracking-[0.2em]">
-                TOTAL WIN
+                BIG WIN
               </div>
             </div>
           </div>,
