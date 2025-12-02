@@ -75,6 +75,7 @@ const SlotGame = () => {
   const totalWinTimeoutRef = useRef(null);
   const skipSignalRef = useRef(false);
   const reelFinishedResolver = useRef(null);
+  const hasRestoredSession = useRef(false);
   const keyList = Object.keys(SYMBOL_SPRITES);
 
   const totalScatters = useMemo(() => countScattersInGrid(grid), [grid]);
@@ -82,6 +83,32 @@ const SlotGame = () => {
   if (loading) return null;
 
   // --- USE EFFECTS ---
+  useEffect(() => {
+    if (loading || !user) {
+      return;
+    }
+
+    if (hasRestoredSession.current) {
+      return;
+    }
+
+    hasRestoredSession.current = true;
+
+    const isBonus = user.bonusSession?.isActive;
+
+    if (isBonus) {
+      setIsBoughtBonusActive(true);
+      setBetAmount(user.bonusSession.betAmount);
+      setAccumulatedBonusMultiplier(user.bonusSession.accumulatedMultiplier);
+
+      setBonusTotalWin(user.bonusSession.accumulatedWin);
+
+      setCurrentDisplayMultiplier(user.bonusSession.accumulatedMultiplier);
+      toast("Bonus session restored!", { icon: "🔄", duration: 2000 });
+    }
+    audioManager.resume(isBonus);
+  }, [user, loading]);
+
   useEffect(() => {
     const preloadImages = () => {
       Object.values(SYMBOL_SPRITES).forEach((src) => {
@@ -93,23 +120,22 @@ const SlotGame = () => {
   }, []);
 
   useEffect(() => {
-    const tryPlay = () => {
-      if (!isBoughtBonusActive) audioManager.playAmbient();
-    };
     const unlockAudio = () => {
-      tryPlay();
+      const isBonus = user?.bonusSession?.isActive || isBoughtBonusActive;
+      audioManager.resume(isBonus);
+
       document.removeEventListener("click", unlockAudio);
       document.removeEventListener("keydown", unlockAudio);
     };
+
     document.addEventListener("click", unlockAudio);
     document.addEventListener("keydown", unlockAudio);
-    tryPlay();
+
     return () => {
-      audioManager.stopAll();
       document.removeEventListener("click", unlockAudio);
       document.removeEventListener("keydown", unlockAudio);
     };
-  }, []);
+  }, [user?.bonusSession?.isActive, isBoughtBonusActive]);
 
   useEffect(() => {
     const handleVisibilityChanged = () => {
@@ -165,6 +191,15 @@ const SlotGame = () => {
         }
         return;
       }
+
+      if (isSpinning || isBoughtBonusActive) {
+        if (
+          ["arrowup", "arrowdown", "m", "a", "b"].includes(e.key.toLowerCase())
+        ) {
+          return;
+        }
+      }
+
       switch (e.key.toLowerCase()) {
         case " ":
         case "enter":
@@ -192,7 +227,13 @@ const SlotGame = () => {
     };
     window.addEventListener("keydown", handleKeyPress);
     return () => window.removeEventListener("keydown", handleKeyPress);
-  }, [isSpinning, betAmount, isAutoPlaying, isReelSpinning]);
+  }, [
+    isSpinning,
+    betAmount,
+    isAutoPlaying,
+    isReelSpinning,
+    isBoughtBonusActive,
+  ]);
 
   useEffect(() => {
     const shouldAutoSpin =
@@ -223,13 +264,19 @@ const SlotGame = () => {
       finishResolve = resolve;
     });
     reelFinishedResolver.current = finishResolve;
+
     const startTime = Date.now();
-    while (Date.now() - startTime < minDurationMs) {
-      if (skipSignalRef.current) return true;
-      await new Promise((resolve) => setTimeout(resolve, 100));
-    }
-    if (!skipSignalRef.current) await finishPromise;
-    return false;
+    const remainingTime = minDurationMs;
+    
+    if(skipSignalRef.current) return true;
+
+    const timePromise = new Promise((resolve) => 
+      setTimeout(resolve, remainingTime)
+    );
+
+    await Promise.race([finishPromise, timePromise]);
+
+    return skipSignalRef.current;
   };
 
   const handleSpin = async () => {
@@ -271,6 +318,7 @@ const SlotGame = () => {
       );
       const res = { data: spinResult.data };
       const initialChestTransforms = res.data.initialChestTransforms || [];
+
       const BASE_DURATION = 2000;
       const EXTRA_BUFFER = 500;
       const lastColIndex = GRID_COLS - 1;
@@ -282,11 +330,31 @@ const SlotGame = () => {
       setGrid(initialVisualGrid);
 
       if (isFirstBoughtSpin) setIsFirstBoughtSpin(false);
+
       if (res.data.bonusMultiplier !== undefined)
         setAccumulatedBonusMultiplier(res.data.bonusMultiplier);
 
-      const intermediateBalace = res.data.newBalance - res.data.totalWin;
-      updateUser({ balance: intermediateBalace });
+      const isBonusContinuing = res.data.bonusSession?.isActive;
+
+      const previousBonusTotal = bonusTotalWin;
+      let newCalculatedTotal = previousBonusTotal;
+
+      if (isBoughtBonusActive) {
+        if (isBonusContinuing) {
+          newCalculatedTotal = res.data.bonusSession.accumulatedWin;
+          setBonusTotalWin(newCalculatedTotal);
+        } else {
+          newCalculatedTotal = previousBonusTotal + res.data.totalWin;
+          setBonusTotalWin(newCalculatedTotal);
+        }
+      }
+
+      if (user.freeSpins === 0) {
+        const intermediateBalance = res.data.newBalance - res.data.totalWin;
+        updateUser({ balance: intermediateBalance });
+      } else {
+        updateUser({ freeSpins: res.data.freeSpinsRemaining });
+      }
 
       const wasSkipped = await waitForAnimationOrSkip(calculatedDuration);
       audioManager.stopSpinLoop();
@@ -296,9 +364,6 @@ const SlotGame = () => {
       }
 
       setIsReelSpinning(false);
-
-      if (isBoughtBonusActive && res.data.totalWin > 0)
-        setBonusTotalWin((prev) => prev + res.data.totalWin);
 
       let gridForcasCades = initialVisualGrid;
       if (initialChestTransforms.length > 0) {
@@ -317,6 +382,7 @@ const SlotGame = () => {
       updateUser({
         balance: res.data.newBalance,
         freeSpins: res.data.freeSpinsRemaining,
+        ...(res.data.bonusSession && { bonusSession: res.data.bonusSession }),
       });
 
       if (!isBoughtBonusActive) {
@@ -675,7 +741,9 @@ const SlotGame = () => {
                 Current Win
               </span>
               <div className="text-3xl font-black text-transparent bg-clip-text bg-gradient-to-b from-yellow-300 to-yellow-500 drop-shadow-[0_0_10px_rgba(234,179,8,0.3)]">
-                ${totalWinAmount > 0 ? totalWinAmount.toFixed(2) : "0.00"}
+                {isBoughtBonusActive || user?.bonusSession?.isActive
+                  ? bonusTotalWin.toFixed(2)
+                  : totalWinAmount.toFixed(2)}
               </div>
             </div>
           </div>
@@ -749,23 +817,34 @@ const SlotGame = () => {
             </div>
           </div>
           <div className="flex overflow-x-auto lg:grid lg:grid-cols-3 gap-2 pb-1 lg:pb-0 scrollbar-hide">
-            {BET_PRESETS.map((preset) => (
-              <button
-                key={preset}
-                onClick={() => {
-                  setBetAmount(preset);
-                  audioManager.play("click");
-                }}
-                disabled={isSpinning}
-                className={`min-w-[45px] lg:min-w-[60px] px-2 py-2 rounded-lg font-bold text-[10px] lg:text-sm transition-all border ${
-                  betAmount === preset
-                    ? "bg-purple-600 border-purple-400 text-white"
-                    : "bg-black/40 border-white/10 text-gray-500"
-                }`}
-              >
-                ${preset}
-              </button>
-            ))}
+            {BET_PRESETS.map((preset) => {
+              const isLocked =
+                isSpinning ||
+                isBoughtBonusActive ||
+                user?.bonusSession?.isActive;
+
+              return (
+                <button
+                  key={preset}
+                  onClick={() => {
+                    setBetAmount(preset);
+                    audioManager.play("click");
+                  }}
+                  disabled={isLocked}
+                  className={`min-w-[45px] lg:min-w-[60px] px-2 py-2 rounded-lg font-bold text-[10px] lg:text-sm transition-all border ${
+                    betAmount === preset
+                      ? isLocked
+                        ? "bg-purple-900 border-purple-700 text-gray-400 cursor-not-allowed" // Selected but locked
+                        : "bg-purple-600 border-purple-400 text-white" // Selected
+                      : isLocked
+                      ? "bg-black/20 border-white/5 text-gray-700 cursor-not-allowed" // Not selected and locked
+                      : "bg-black/40 border-white/10 text-gray-500 hover:bg-gray-800" // Normal
+                  }`}
+                >
+                  ${preset}
+                </button>
+              );
+            })}
           </div>
         </div>
 
@@ -804,6 +883,7 @@ const SlotGame = () => {
         <div className="grid grid-cols-2 gap-2 mb-1">
           <button
             onClick={() => setShowBuyBonusModal(true)}
+            disabled={isSpinning || isBoughtBonusActive}
             className="py-2 lg:py-3 bg-pink-900/20 border border-pink-500/30 rounded-lg text-[9px] lg:text-[10px] font-bold text-pink-200 uppercase tracking-widest"
           >
             Buy Bonus
@@ -849,51 +929,207 @@ const SlotGame = () => {
       )}
 
       {showPayoutTable && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-md p-4 overflow-y-auto">
-          <div className="bg-gray-900/95 border border-blue-500/50 rounded-2xl p-8 max-w-3xl w-full">
-            <h2 className="text-3xl font-black text-white mb-6 text-center">
-              PAYTABLE_DATA
-            </h2>
-            <div className="grid grid-cols-2 gap-6 mb-6">
-              <div>
-                <h3 className="text-xl font-bold text-purple-400 mb-3">
-                  Tier 1 Symbols
-                </h3>
-                <div className="space-y-2">
-                  {Object.entries(PAYOUT_TABLE).map(([size, payouts]) => (
-                    <div
-                      key={size}
-                      className="flex justify-between text-sm text-gray-300"
-                    >
-                      <span>{size} symbols:</span>
-                      <span className="text-green-400">{payouts.tier1}x</span>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-md p-2 sm:p-4">
+          {/* Container: 
+              - max-h-[85dvh] ensures it fits on mobile screens with browser bars 
+              - flex-col allows us to lock header/footer and scroll the middle
+          */}
+          <div className="bg-gray-900/95 border border-blue-500/50 rounded-xl sm:rounded-2xl w-full max-w-4xl max-h-[85dvh] flex flex-col shadow-[0_0_50px_rgba(59,130,246,0.2)]">
+            {/* 1. HEADER (Fixed at top) */}
+            <div className="p-4 sm:p-6 border-b border-white/10 shrink-0 flex justify-between items-center bg-gray-900/95 rounded-t-xl sm:rounded-t-2xl">
+              <h2 className="text-xl sm:text-3xl font-black text-white tracking-tighter uppercase">
+                Paytable
+              </h2>
+              <button
+                onClick={() => setShowPayoutTable(false)}
+                className="p-2 -mr-2 text-gray-400 hover:text-white transition-colors"
+              >
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  className="h-6 w-6 sm:h-8 sm:w-8"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M6 18L18 6M6 6l12 12"
+                  />
+                </svg>
+              </button>
+            </div>
+
+            {/* 2. SCROLLABLE CONTENT (Middle area) */}
+            <div className="p-4 sm:p-6 overflow-y-auto custom-scrollbar bg-gray-900/50">
+              {/* SYMBOL VISUALS */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-8 mb-6 sm:mb-8">
+                {/* Tier 1 Visuals */}
+                <div className="bg-white/5 rounded-xl p-3 sm:p-4 border border-white/10">
+                  <h3 className="text-sm sm:text-lg font-bold text-purple-400 mb-3 border-b border-white/10 pb-2 uppercase tracking-widest">
+                    Common Symbols
+                  </h3>
+                  {/* Flex wrap ensures icons fit on any screen width */}
+                  <div className="flex flex-wrap gap-3 sm:gap-4 justify-center md:justify-start">
+                    {["BLUE_GEM", "GREEN_GEM", "PURPLE_GEM", "RED_GEM"].map(
+                      (key) => (
+                        <div
+                          key={key}
+                          className="w-10 h-10 sm:w-16 sm:h-16 relative bg-black/20 rounded-lg p-1"
+                        >
+                          <img
+                            src={SYMBOL_SPRITES[key]}
+                            alt={key}
+                            className="w-full h-full object-contain drop-shadow-lg"
+                          />
+                        </div>
+                      )
+                    )}
+                  </div>
+                  <p className="text-[10px] sm:text-xs text-gray-400 mt-3 italic text-center md:text-left">
+                    Low volatility, high frequency.
+                  </p>
+                </div>
+
+                {/* Tier 2 Visuals */}
+                <div className="bg-white/5 rounded-xl p-3 sm:p-4 border border-white/10">
+                  <h3 className="text-sm sm:text-lg font-bold text-pink-400 mb-3 border-b border-white/10 pb-2 uppercase tracking-widest">
+                    Rare Symbols
+                  </h3>
+                  <div className="flex flex-wrap gap-3 sm:gap-4 justify-center md:justify-start">
+                    {["RING", "HOURGLASS", "CROWN"].map((key) => (
+                      <div
+                        key={key}
+                        className="w-10 h-10 sm:w-16 sm:h-16 relative bg-black/20 rounded-lg p-1"
+                      >
+                        <img
+                          src={SYMBOL_SPRITES[key]}
+                          alt={key}
+                          className="w-full h-full object-contain drop-shadow-lg"
+                        />
+                      </div>
+                    ))}
+                  </div>
+                  <p className="text-[10px] sm:text-xs text-gray-400 mt-3 italic text-center md:text-left">
+                    High value, connects big wins.
+                  </p>
+                </div>
+
+                {/* Specials Section */}
+                <div className="bg-white/5 rounded-xl p-3 sm:p-4 border border-white/10 md:col-span-2">
+                  <h3 className="text-sm sm:text-lg font-bold text-yellow-400 mb-3 border-b border-white/10 pb-2 uppercase tracking-widest">
+                    Special Items
+                  </h3>
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                    {/* Scatter */}
+                    <div className="flex items-center gap-3 bg-black/20 p-2 rounded-lg">
+                      <img
+                        src={SYMBOL_SPRITES["SCATTER"]}
+                        alt="Scatter"
+                        className="w-8 h-8 sm:w-12 sm:h-12 object-contain"
+                      />
+                      <div className="text-[10px] sm:text-xs text-gray-300">
+                        <strong className="block text-white text-xs sm:text-sm">
+                          SCATTER
+                        </strong>
+                        3+ Triggers Bonus
+                      </div>
                     </div>
-                  ))}
+                    {/* Wild */}
+                    <div className="flex items-center gap-3 bg-black/20 p-2 rounded-lg">
+                      <img
+                        src={SYMBOL_SPRITES["WILD"]}
+                        alt="Wild"
+                        className="w-8 h-8 sm:w-12 sm:h-12 object-contain"
+                      />
+                      <div className="text-[10px] sm:text-xs text-gray-300">
+                        <strong className="block text-white text-xs sm:text-sm">
+                          WILD
+                        </strong>
+                        Connects any symbol
+                      </div>
+                    </div>
+                    {/* Multiplier */}
+                    <div className="flex items-center gap-3 bg-black/20 p-2 rounded-lg">
+                      <img
+                        src={SYMBOL_SPRITES["MULTIPLIER_1000X"]}
+                        alt="Mult"
+                        className="w-8 h-8 sm:w-12 sm:h-12 object-contain"
+                      />
+                      <div className="text-[10px] sm:text-xs text-gray-300">
+                        <strong className="block text-white text-xs sm:text-sm">
+                          MULTIPLIER
+                        </strong>
+                        Global Win Boost
+                      </div>
+                    </div>
+                  </div>
                 </div>
               </div>
-              <div>
-                <h3 className="text-xl font-bold text-pink-400 mb-3">
-                  Tier 2 Symbols
-                </h3>
-                <div className="space-y-2">
-                  {Object.entries(PAYOUT_TABLE).map(([size, payouts]) => (
-                    <div
-                      key={size}
-                      className="flex justify-between text-sm text-gray-300"
-                    >
-                      <span>{size} symbols:</span>
-                      <span className="text-green-400">{payouts.tier2}x</span>
-                    </div>
-                  ))}
+
+              {/* DATA TABLES */}
+              <h3 className="text-lg sm:text-xl font-bold text-white mb-4 text-center uppercase tracking-[0.2em]">
+                Cluster Payouts
+              </h3>
+
+              {/* Stack on mobile, side-by-side on desktop */}
+              <div className="flex flex-col md:flex-row gap-4 lg:gap-8">
+                {/* TIER 1 TABLE */}
+                <div className="flex-1 bg-gray-800/50 rounded-lg p-3 sm:p-4">
+                  <div className="flex justify-between mb-2 text-[10px] sm:text-xs font-bold text-gray-500 uppercase border-b border-gray-700 pb-1">
+                    <span>Cluster Size</span>
+                    <span className="text-purple-400">Common Pay</span>
+                  </div>
+                  <div className="space-y-1">
+                    {Object.entries(PAYOUT_TABLE).map(([size, payouts]) => (
+                      <div
+                        key={`t1-${size}`}
+                        className="flex justify-between text-xs sm:text-sm text-gray-300 border-b border-white/5 pb-1 last:border-0"
+                      >
+                        <span className="font-mono text-purple-300">
+                          {size}+
+                        </span>
+                        <span className="text-white font-bold">
+                          {payouts.tier1}x
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* TIER 2 TABLE */}
+                <div className="flex-1 bg-gray-800/50 rounded-lg p-3 sm:p-4">
+                  <div className="flex justify-between mb-2 text-[10px] sm:text-xs font-bold text-gray-500 uppercase border-b border-gray-700 pb-1">
+                    <span>Cluster Size</span>
+                    <span className="text-pink-400">Rare Pay</span>
+                  </div>
+                  <div className="space-y-1">
+                    {Object.entries(PAYOUT_TABLE).map(([size, payouts]) => (
+                      <div
+                        key={`t2-${size}`}
+                        className="flex justify-between text-xs sm:text-sm text-gray-300 border-b border-white/5 pb-1 last:border-0"
+                      >
+                        <span className="font-mono text-pink-300">{size}+</span>
+                        <span className="text-white font-bold">
+                          {payouts.tier2}x
+                        </span>
+                      </div>
+                    ))}
+                  </div>
                 </div>
               </div>
             </div>
-            <button
-              onClick={() => setShowPayoutTable(false)}
-              className="w-full mt-6 px-6 py-3 bg-blue-600 text-white font-bold rounded-lg uppercase tracking-widest"
-            >
-              CLOSE
-            </button>
+
+            {/* 3. FOOTER (Fixed at bottom) */}
+            <div className="p-4 border-t border-white/10 bg-gray-900/95 rounded-b-xl sm:rounded-b-2xl shrink-0">
+              <button
+                onClick={() => setShowPayoutTable(false)}
+                className="w-full py-3 bg-blue-600 hover:bg-blue-500 text-white text-sm sm:text-base font-bold rounded-lg uppercase tracking-widest transition-all shadow-lg active:scale-95"
+              >
+                Close Paytable
+              </button>
+            </div>
           </div>
         </div>
       )}

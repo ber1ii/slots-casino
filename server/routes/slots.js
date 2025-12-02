@@ -101,7 +101,7 @@ const SYMBOLS = {
   CHEST: {
     id: "CHEST",
     symbol: "🎁",
-    weight: 0.4,
+    weight: 0.35,
     name: "Chest",
   },
 
@@ -109,7 +109,7 @@ const SYMBOLS = {
   SCATTER: {
     id: "SCATTER",
     symbol: "⭐",
-    weight: 0.65,
+    weight: 0.45,
     name: "Scatter",
   },
   CHEST_OPENED: {
@@ -169,13 +169,13 @@ function getRandomSymbol(isBoughtBonus = false, excludeChest = false) {
     if (!isBoughtBonus) return s.weight;
 
     // Boost scatters, mult, tier 2 and wilds during bonus
-    if (s.id === "SCATTER") return s.weight * 3.5;
-    if (s.multiplier !== undefined) return s.weight * 5;
-    if (s.tier === 2) return s.weight * 1.5;
+    if (s.id === "SCATTER") return s.weight * 2;
+    if (s.multiplier !== undefined) return s.weight * 4;
+    if (s.tier === 2) return s.weight * 1.85;
     if (s.id === "WILD") return s.weight * 1.4;
     if (s.id === "CHEST") return s.weight * 1.75;
 
-    return s.weight * 0.65; // Slightly reduces tier 1
+    return s.weight * 0.45; // Slightly reduces tier 1
   });
 
   const totalWeight = weights.reduce((sum, w) => sum + w, 0);
@@ -307,9 +307,7 @@ function processChest(grid) {
   const chestTransforms = [];
 
   chestPositions.forEach(([chestRow, chestCol]) => {
-    // Find tier 1 symbols to transform
-    const tier1Positions = [];
-    const tier2Positions = [];
+    const candidates = [];
 
     for (let row = 0; row < GRID_ROWS; row++) {
       for (let col = 0; col < GRID_COLS; col++) {
@@ -320,36 +318,40 @@ function processChest(grid) {
         if (
           symbol.id === "WILD" ||
           symbol.id === "SCATTER" ||
-          symbol.multiplier
+          symbol.multiplier || 
+          symbol.id === "CHEST" ||
+          symbol.id === "CHEST_OPENED"
         )
           continue;
 
-        if (symbol.tier === 1) {
-          tier1Positions.push([row, col]);
-        } else if (symbol.tier === 2) {
-          tier2Positions.push([row, col]);
+        const tempVisited = Array(GRID_ROWS).fill().map(() => Array(GRID_COLS).fill(false));
+        const cluster = bfs(grid, row, col, symbol.id, tempVisited);
+        const clusterSize = cluster.positions.length;
+
+        let priorityScore = 2;
+        if(clusterSize === 1) priorityScore = 0;
+        else if (clusterSize < MIN_CLUSTER_SIZE) priorityScore = 1;
+
+        if(symbol.tier === 1 || symbol.tier === 2) {
+          candidates.push({
+            r: row,
+            c: col,
+            size: clusterSize,
+            priority: priorityScore,
+            random: Math.random(),
+          });
         }
       }
     }
 
-    // Pick 3 symbols (Prefer tier 1 symbols)
-    let targetsToTransform = [];
-    if (tier1Positions.length >= 3) {
-      // Randomly pick 3 tier 1 symbols
-      for (let i = 0; i < 3; i++) {
-        const randomIndex = Math.floor(Math.random() * tier1Positions.length);
-        targetsToTransform.push(tier1Positions.splice(randomIndex, 1)[0]);
-      }
-    } else {
-      // Not enough tier 1 symbols, use what we have + tier 2
-      targetsToTransform = [...tier1Positions];
-      const needed = 3 - targetsToTransform.length;
+    candidates.sort((a, b) => {
+      if(a.priority !== b.priority) return a.priority - b.priority;
+      if(a.size !== b.size) return a.size - b.size;
+      return a.random - b.random;
+    });
 
-      for (let i = 0; i < needed && tier2Positions.length > 0; i++) {
-        const randomIndex = Math.floor(Math.random() * tier2Positions.length);
-        targetsToTransform.push(tier2Positions.splice(randomIndex, 1)[0]);
-      }
-    }
+    // Pick 3 symbols 
+    const targetsToTransform = candidates.slice(0, 3).map(c => [c.r, c.c]);
 
     if (targetsToTransform.length === 0) return;
 
@@ -357,8 +359,8 @@ function processChest(grid) {
     const cases = [
       { scatters: 3, wilds: 0, probability: 0.05 },
       { scatters: 1, wilds: 2, probability: 0.35 },
-      { scatters: 2, wilds: 1, probability: 0.15 },
-      { scatters: 0, wilds: 3, probability: 0.45 },
+      { scatters: 2, wilds: 1, probability: 0.1 },
+      { scatters: 0, wilds: 3, probability: 0.5 },
     ];
 
     const totalProb = cases.reduce((sum, c) => sum + c.probability, 0);
@@ -437,6 +439,12 @@ function findClusters(grid) {
         positions: cluster.positions,
         size: cluster.positions.length,
         tier: cluster.maxTier,
+      });
+    } else {
+      cluster.positions.forEach(([r, c]) => {
+        if (grid[r][c].id === "WILD") {
+          visited[r][c] = false;
+        }
       });
     }
   };
@@ -819,21 +827,25 @@ router.post(
     body("betAmount")
       .isFloat({ min: 0.2, max: 100 })
       .withMessage("Bet must be between 0.20 and 100.00"),
-    body("isBoughtBonusSpin").optional().isBoolean(),
-    body("isFirstBoughtSpin").optional().isBoolean(),
-    body("bonusMultiplier").optional().isFloat({ min: 1 }),
   ],
   validate,
   async (req, res) => {
     try {
-      const {
-        betAmount,
-        isBoughtBonusSpin,
-        isFirstBoughtSpin,
-        bonusMultiplier,
-      } = req.body;
       const user = await User.findById(req.userId);
       if (!user) return res.status(404).json({ error: "User not found" });
+
+      let { betAmount } = req.body;
+      let isBonusActive = user.bonusSession && user.bonusSession.isActive;
+      let guaranteeWin = false;
+      let currentBonusMultiplier = 1;
+
+      // Check for active bonus session
+      if(isBonusActive) {
+        betAmount = user.bonusSession.betAmount;
+        currentBonusMultiplier = user.bonusSession.accumulatedMultiplier;
+
+        if(user.freeSpins === 10 && user.bonusSession.isBought) guaranteeWin = true;
+      }
 
       // Check if using free spin
       const isFreeSpin = user.freeSpins > 0;
@@ -849,14 +861,10 @@ router.post(
         user.balance -= betAmount;
       }
 
-      const isBoughtBonus = isBoughtBonusSpin === true;
-      const guaranteeWin = isFirstBoughtSpin === true;
-      const currentBonusMultiplier = bonusMultiplier || 1;
-
       // Process spin
       const result = processSpin(
         parseFloat(betAmount),
-        isBoughtBonus,
+        isBonusActive,
         guaranteeWin,
         parseFloat(currentBonusMultiplier)
       );
@@ -864,9 +872,34 @@ router.post(
       // Add winnings
       user.balance += result.totalWin;
 
+      if(isBonusActive) {
+        user.bonusSession.accumulatedMultiplier = result.bonusMultiplier;
+        user.bonusSession.accumulatedWin += result.totalWin;
+
+        if(user.freeSpins <= 0 && result.triggeredFreeSpins === 0) {
+          user.bonusSession = {
+            isActive: false,
+            betAmount: 0,
+            accumulatedMultiplier: 1,
+            accumulatedWin: 0,
+            isBought: false
+          };
+        }
+      }
+
       // Add free spins if triggered
       if (result.triggeredFreeSpins > 0) {
         user.freeSpins += result.triggeredFreeSpins;
+
+        if(!isBonusActive) {
+          user.bonusSession = {
+            isActive: true,
+            betAmount: parseFloat(betAmount),
+            accumulatedMultiplier: 1,
+            accumulatedWin: 0,
+            isBought: false
+          };
+        }
       }
 
       user.totalSpins = (user.totalSpins || 0) + 1;
@@ -898,6 +931,7 @@ router.post(
         newBalance: user.balance,
         freeSpinsRemaining: user.freeSpins,
         wasFreeSpin: isFreeSpin,
+        bonusSession: user.bonusSession,
       });
     } catch (error) {
       console.error("Spin error:", error);
@@ -933,6 +967,15 @@ router.post(
       user.balance -= cost;
       user.totalWagered = (user.totalWagered || 0) + cost;
       user.freeSpins += FREE_SPINS_AMOUNT;
+
+      user.bonusSession = {
+        isActive: true,
+        betAmount: parseFloat(betAmount),
+        accumulatedMultiplier: 1,
+        accumulatedWin: 0,
+        isBought: true
+      };
+
       await user.save();
 
       res.json({
@@ -941,6 +984,7 @@ router.post(
         cost,
         newBalance: user.balance,
         totalFreeSpins: user.freeSpins,
+        bonusSession: user.bonusSession,
         isBoughtBonus: true,
       });
     } catch (error) {

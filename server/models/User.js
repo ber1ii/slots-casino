@@ -39,6 +39,14 @@ const userSchema = new mongoose.Schema(
       min: 0,
     },
 
+    bonusSession: {
+      isActive: { type: Boolean, default: false },
+      betAmount: { type: Number, default: 0},
+      accumulatedMultiplier: { type: Number, default: 1 },
+      accumulatedWin: { type: Number, default: 0 },
+      isBought: { type: Boolean, default: false },
+    },
+
     // Game statistics
     totalSpins: {
       type: Number,

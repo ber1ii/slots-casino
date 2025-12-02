@@ -12,7 +12,7 @@ export const useAudio = () => {
 };
 
 export const AudioProvider = ({ children }) => {
-  const [soundEnabled, setSoundEnabled] = useState(true);
+  const [soundEnabled, setSoundEnabled] = useState(audioManager.isEnabled());
 
   const toggleSound = () => {
     const newState = audioManager.toggle();
