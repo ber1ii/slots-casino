@@ -352,8 +352,6 @@ const SlotGame = () => {
       if (user.freeSpins === 0) {
         const intermediateBalance = res.data.newBalance - res.data.totalWin;
         updateUser({ balance: intermediateBalance });
-      } else {
-        updateUser({ freeSpins: res.data.freeSpinsRemaining });
       }
 
       const wasSkipped = await waitForAnimationOrSkip(calculatedDuration);
